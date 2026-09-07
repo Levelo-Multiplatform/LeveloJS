@@ -157,11 +157,7 @@ function transformJSX(
     else if (types.isJSXExpressionContainer(child)) {
       const expression = child.expression;
       if (!types.isJSXEmptyExpression(expression)) {
-        if (types.isArrowFunctionExpression(expression)) {
-          children.push(expression);
-        } else {
-          children.push(types.arrowFunctionExpression([], expression as t.Expression));
-        }
+        children.push(expression as t.Expression);
       }
     }
     // Recursively transform nested JSX elements while passing types (t) and the active namespace context

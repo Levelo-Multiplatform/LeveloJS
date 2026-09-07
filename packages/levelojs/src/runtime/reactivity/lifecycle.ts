@@ -1,5 +1,5 @@
 // src/runtime/reactivity/lifecycle.ts
-import { activeOwner } from "./owner";
+import { activeOwner } from "./owner.js";
 
 /**
  * Registers a cleanup callback that fires immediately when the active context or route changes.

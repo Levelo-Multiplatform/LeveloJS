@@ -1,0 +1,28 @@
+h1 {
+    text-align: center;
+
+}
+
+h1 span {
+    color: blueviolet;
+    margin-left: 10px;
+}
+
+div p {
+    background: #f3f3f3;
+    padding: 20px;
+    border: 1px;
+    border-radius: 8px;
+    font-size: 18px;
+}
+
+button {
+    background: blueviolet;
+    color: #f3f3f3;
+    padding: 15px;
+    font-size: 15px;
+    border: none;
+    outline: none;
+    border-radius: 8px;
+    width: 100%;
+}

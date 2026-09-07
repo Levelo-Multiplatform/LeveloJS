@@ -332,13 +332,6 @@
   font-weight: 600;
 }
 
-.purple {
-  stroke: #9333ea;
-  fill: none;
-  display: inline-block;
-  vertical-align: middle;
-}
-
 /* Small Device Responsiveness Overrides */
 @media (max-width: 768px) {
   .navbar {

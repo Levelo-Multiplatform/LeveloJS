@@ -1,7 +1,7 @@
 // src/runtime/reactivity/state.ts
 
-import { setOwner, Owner } from "./owner";
-import { isBatching, queue } from "./batch";
+import { setOwner, Owner } from "./owner.js";
+import { isBatching, queue } from "./batch.js";
 
 /**
  * Global tracker to register active effects.

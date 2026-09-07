@@ -2,28 +2,6 @@
 
 ## All notable changes to this project will be documented in this file.
 
-## [2.1.2] - 2026-07-22
-
-### Fixed & Refactored
-  - **JSX Architecture & Directory Restructuring:** 
-    - Relocated `src/jsx.d.ts` and `src/runtime/jsx-runtime.ts` into a unified `src/runtime/jsx/` directory module.
-    - Decoupled `jsx.d.ts` from the root entry point (`index.ts`) and linked it directly within `jsx-runtime.ts` to combine runtime logic with type definitions cleanly.
-  - **DTS Bundling & Import Resolution:** Resolved entry export errors (`Module has no exported member 'h'`) during `tsup` builds by synchronizing internal type bindings directly through the newly structured JSX runtime module.
-  - **Ambient JSX Typings & Asset Support:** Fixed `This JSX tag requires 'h' to be in scope` and CSS side-effect import errors by consolidating ambient types natively under the new JSX module pipeline.
-
----
-
-## [v2.1.1] - 2026-07-21
-
-### Fixes
-
-* **Fix JSX Type Exports (`jsx.d.ts` & `index.ts`)**:
-  - Fixed TypeScript namespace resolution error when exporting `JSX` from package entry point.
-  - Resolved `tsup` DTS build failure (`ImportEquals should have a literal source`) for Rolldown/SWC bundler compatibility.
-  - Ensured ambient global JSX HTML/SVG element types work out-of-the-box without requiring manual type imports in client apps.
-
----
-
 ## [2.1.0] - 2026-07-18
 
 ### Added
@@ -157,3 +135,12 @@
 - `Pages` / `Page` — file-based routing
 - `h()` — real DOM element factory (internal)
 - `leveloPlugin` — Vite plugin for JSX compilation
+## 2.2.0
+
+- Connected the public `h()` API to the new render-tree renderer.
+- Replaced direct DOM mounting with the renderer-backed `render()` API.
+- Added web node deletion and native registry cleanup.
+- Preserved styles, events, properties, text updates, replacement, insertion, and ordering through the renderer operation pipeline.
+- Added reactive component rendering through the existing `state()` and `effect()` primitives.
+- Removed obsolete renderer command, mutation, scheduler, container, and duplicate adapter layers.
+- Added a public web renderer example and package-ready Vite setup.

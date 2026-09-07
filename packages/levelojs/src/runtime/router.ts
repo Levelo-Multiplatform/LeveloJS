@@ -1,5 +1,5 @@
 // router.ts - Optimized Enterprise Routing Engine for Levelo JS (Version 2.0.0 Specs)
-import { h } from './jsx/jsx-runtime';
+import { h } from './jsx-runtime.js';
 import { applyHeadUpdates } from './head.js';
 import { getClean404Component } from './templates/error404.js';
 

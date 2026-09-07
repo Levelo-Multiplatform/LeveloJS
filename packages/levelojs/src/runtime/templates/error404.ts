@@ -1,5 +1,5 @@
 // src/runtime/templates/error404.ts - Levelo JS Native 404 Visual Node Template (Neutral Schema)
-import { head } from "../head";
+import { head } from "../head.js";
 
 export interface ErrorTemplateProps {
   h: (tag: any, props: any, ...children: any[]) => any;

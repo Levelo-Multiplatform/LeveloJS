@@ -136,74 +136,295 @@ declare global {
       patternUnits?: Reactive<string>;
     }
 
-    export interface IntrinsicElements {
-      a: AnchorHTMLAttributes;
-      abbr: HTMLAttributes;
-      address: HTMLAttributes;
-      article: HTMLAttributes;
-      aside: HTMLAttributes;
-      audio: HTMLAttributes;
-      b: HTMLAttributes;
-      blockquote: HTMLAttributes;
-      body: HTMLAttributes;
-      br: HTMLAttributes;
-      button: ButtonHTMLAttributes;
-      canvas: HTMLAttributes;
-      code: HTMLAttributes;
-      div: HTMLAttributes;
-      em: HTMLAttributes;
-      footer: HTMLAttributes;
-      form: FormHTMLAttributes;
-      h1: HTMLAttributes;
-      h2: HTMLAttributes;
-      h3: HTMLAttributes;
-      h4: HTMLAttributes;
-      h5: HTMLAttributes;
-      h6: HTMLAttributes;
-      header: HTMLAttributes;
-      hr: HTMLAttributes;
-      i: HTMLAttributes;
-      iframe: HTMLAttributes;
-      img: ImgHTMLAttributes;
-      input: InputHTMLAttributes;
-      label: HTMLAttributes;
-      li: HTMLAttributes;
-      main: HTMLAttributes;
-      nav: HTMLAttributes;
-      option: OptionHTMLAttributes;
-      p: HTMLAttributes;
-      pre: HTMLAttributes;
-      section: HTMLAttributes;
-      select: SelectHTMLAttributes;
-      span: HTMLAttributes;
-      strong: HTMLAttributes;
-      table: HTMLAttributes;
-      tbody: HTMLAttributes;
-      td: HTMLAttributes;
-      textarea: TextAreaHTMLAttributes;
-      th: HTMLAttributes;
-      thead: HTMLAttributes;
-      tr: HTMLAttributes;
-      ul: HTMLAttributes;
-      ol: HTMLAttributes;
-      video: HTMLAttributes;
+    // This is an old interface - not in used
 
-      svg: SVGAttributes;
-      path: SVGAttributes;
-      circle: SVGAttributes;
-      rect: SVGAttributes;
-      line: SVGAttributes;
-      polyline: SVGAttributes;
-      polygon: SVGAttributes;
-      g: SVGAttributes;
-      text: SVGAttributes;
-      defs: SVGAttributes;
-      use: SVGAttributes;
+//     export interface IntrinsicElements {
+//       a: AnchorHTMLAttributes;
+//       abbr: HTMLAttributes;
+//       address: HTMLAttributes;
+//       article: HTMLAttributes;
+//       aside: HTMLAttributes;
+//       audio: HTMLAttributes;
+//       b: HTMLAttributes;
+//       blockquote: HTMLAttributes;
+//       body: HTMLAttributes;
+//       br: HTMLAttributes;
+//       button: ButtonHTMLAttributes;
+//       canvas: HTMLAttributes;
+//       code: HTMLAttributes;
+//       div: HTMLAttributes;
+//       em: HTMLAttributes;
+//       footer: HTMLAttributes;
+//       form: FormHTMLAttributes;
+//       h1: HTMLAttributes;
+//       h2: HTMLAttributes;
+//       h3: HTMLAttributes;
+//       h4: HTMLAttributes;
+//       h5: HTMLAttributes;
+//       h6: HTMLAttributes;
+//       header: HTMLAttributes;
+//       hr: HTMLAttributes;
+//       i: HTMLAttributes;
+//       iframe: HTMLAttributes;
+//       img: ImgHTMLAttributes;
+//       input: InputHTMLAttributes;
+//       label: HTMLAttributes;
+//       li: HTMLAttributes;
+//       main: HTMLAttributes;
+//       nav: HTMLAttributes;
+//       option: OptionHTMLAttributes;
+//       p: HTMLAttributes;
+//       pre: HTMLAttributes;
+//       section: HTMLAttributes;
+//       select: SelectHTMLAttributes;
+//       span: HTMLAttributes;
+//       strong: HTMLAttributes;
+//       table: HTMLAttributes;
+//       tbody: HTMLAttributes;
+//       td: HTMLAttributes;
+//       textarea: TextAreaHTMLAttributes;
+//       th: HTMLAttributes;
+//       thead: HTMLAttributes;
+//       tr: HTMLAttributes;
+//       ul: HTMLAttributes;
+//       ol: HTMLAttributes;
+//       video: HTMLAttributes;
 
-      math: HTMLAttributes;
+//       svg: SVGAttributes;
+//       path: SVGAttributes;
+//       circle: SVGAttributes;
+//       rect: SVGAttributes;
+//       line: SVGAttributes;
+//       polyline: SVGAttributes;
+//       polygon: SVGAttributes;
+//       g: SVGAttributes;
+//       text: SVGAttributes;
+//       defs: SVGAttributes;
+//       use: SVGAttributes;
 
-      [elemName: string]: HTMLAttributes;
-    }
+//       math: HTMLAttributes;
+
+//       [elemName: string]: HTMLAttributes;
+//     }
+//   }
+// }
+
+// Upgraded interface containing all essential web element - in use
+export interface IntrinsicElements {
+  /* ============================================================
+   * DOCUMENT / SEMANTIC
+   * ============================================================ */
+  html: HTMLAttributes;
+  head: HTMLAttributes;
+  body: HTMLAttributes;
+  base: HTMLAttributes;
+  link: HTMLAttributes;
+  meta: HTMLAttributes;
+  style: HTMLAttributes;
+  title: HTMLAttributes;
+
+  address: HTMLAttributes;
+  article: HTMLAttributes;
+  aside: HTMLAttributes;
+  footer: HTMLAttributes;
+  header: HTMLAttributes;
+  h1: HTMLAttributes;
+  h2: HTMLAttributes;
+  h3: HTMLAttributes;
+  h4: HTMLAttributes;
+  h5: HTMLAttributes;
+  h6: HTMLAttributes;
+  main: HTMLAttributes;
+  nav: HTMLAttributes;
+  section: HTMLAttributes;
+  search: HTMLAttributes;
+
+  /* ============================================================
+   * TEXT / INLINE
+   * ============================================================ */
+  a: AnchorHTMLAttributes;
+  abbr: HTMLAttributes;
+  b: HTMLAttributes;
+  bdi: HTMLAttributes;
+  bdo: HTMLAttributes;
+  cite: HTMLAttributes;
+  code: HTMLAttributes;
+  data: HTMLAttributes;
+  del: HTMLAttributes;
+  dfn: HTMLAttributes;
+  em: HTMLAttributes;
+  i: HTMLAttributes;
+  ins: HTMLAttributes;
+  kbd: HTMLAttributes;
+  mark: HTMLAttributes;
+  q: HTMLAttributes;
+  rp: HTMLAttributes;
+  rt: HTMLAttributes;
+  ruby: HTMLAttributes;
+  s: HTMLAttributes;
+  samp: HTMLAttributes;
+  small: HTMLAttributes;
+  span: HTMLAttributes;
+  strong: HTMLAttributes;
+  sub: HTMLAttributes;
+  sup: HTMLAttributes;
+  time: HTMLAttributes;
+  u: HTMLAttributes;
+  var: HTMLAttributes;
+  wbr: HTMLAttributes;
+
+  /* ============================================================
+   * BLOCK / CONTENT
+   * ============================================================ */
+  blockquote: HTMLAttributes;
+  div: HTMLAttributes;
+  figure: HTMLAttributes;
+  figcaption: HTMLAttributes;
+  hr: HTMLAttributes;
+  pre: HTMLAttributes;
+
+  /* ============================================================
+   * LISTS
+   * ============================================================ */
+  dl: HTMLAttributes;
+  dt: HTMLAttributes;
+  dd: HTMLAttributes;
+  ol: HTMLAttributes;
+  ul: HTMLAttributes;
+  li: HTMLAttributes;
+
+  /* ============================================================
+   * TABLES
+   * ============================================================ */
+  table: HTMLAttributes;
+  caption: HTMLAttributes;
+  colgroup: HTMLAttributes;
+  col: HTMLAttributes;
+  thead: HTMLAttributes;
+  tbody: HTMLAttributes;
+  tfoot: HTMLAttributes;
+  tr: HTMLAttributes;
+  th: HTMLAttributes;
+  td: HTMLAttributes;
+
+  /* ============================================================
+   * FORMS
+   * ============================================================ */
+  form: FormHTMLAttributes;
+  fieldset: HTMLAttributes;
+  legend: HTMLAttributes;
+  label: HTMLAttributes;
+  input: InputHTMLAttributes;
+  button: ButtonHTMLAttributes;
+  select: SelectHTMLAttributes;
+  option: OptionHTMLAttributes;
+  optgroup: HTMLAttributes;
+  textarea: TextAreaHTMLAttributes;
+  datalist: HTMLAttributes;
+  output: HTMLAttributes;
+  meter: HTMLAttributes;
+  progress: HTMLAttributes;
+
+  /* ============================================================
+   * MEDIA
+   * ============================================================ */
+  audio: HTMLAttributes;
+  video: HTMLAttributes;
+  source: HTMLAttributes;
+  track: HTMLAttributes;
+  img: ImgHTMLAttributes;
+  picture: HTMLAttributes;
+  iframe: HTMLAttributes;
+  embed: HTMLAttributes;
+  object: HTMLAttributes;
+  param: HTMLAttributes;
+
+  /* ============================================================
+   * INTERACTIVE
+   * ============================================================ */
+  details: HTMLAttributes;
+  summary: HTMLAttributes;
+  dialog: HTMLAttributes;
+
+  /* ============================================================
+   * GRAPHICS
+   * ============================================================ */
+  canvas: HTMLAttributes;
+
+  /* ============================================================
+   * SVG
+   * ============================================================ */
+  svg: SVGAttributes;
+  g: SVGAttributes;
+  path: SVGAttributes;
+  circle: SVGAttributes;
+  ellipse: SVGAttributes;
+  rect: SVGAttributes;
+  line: SVGAttributes;
+  polyline: SVGAttributes;
+  polygon: SVGAttributes;
+  defs: SVGAttributes;
+  use: SVGAttributes;
+  text: SVGAttributes;
+  tspan: SVGAttributes;
+  title: SVGAttributes;
+  desc: SVGAttributes;
+  symbol: SVGAttributes;
+  marker: SVGAttributes;
+  clipPath: SVGAttributes;
+  mask: SVGAttributes;
+  pattern: SVGAttributes;
+  linearGradient: SVGAttributes;
+  radialGradient: SVGAttributes;
+  stop: SVGAttributes;
+  filter: SVGAttributes;
+  feBlend: SVGAttributes;
+  feColorMatrix: SVGAttributes;
+  feComponentTransfer: SVGAttributes;
+  feComposite: SVGAttributes;
+  feConvolveMatrix: SVGAttributes;
+  feDiffuseLighting: SVGAttributes;
+  feDisplacementMap: SVGAttributes;
+  feDistantLight: SVGAttributes;
+  feDropShadow: SVGAttributes;
+  feFlood: SVGAttributes;
+  feFuncA: SVGAttributes;
+  feFuncB: SVGAttributes;
+  feFuncG: SVGAttributes;
+  feFuncR: SVGAttributes;
+  feGaussianBlur: SVGAttributes;
+  feImage: SVGAttributes;
+  feMerge: SVGAttributes;
+  feMergeNode: SVGAttributes;
+  feMorphology: SVGAttributes;
+  feOffset: SVGAttributes;
+  fePointLight: SVGAttributes;
+  feSpecularLighting: SVGAttributes;
+  feSpotLight: SVGAttributes;
+  feTile: SVGAttributes;
+  feTurbulence: SVGAttributes;
+
+  /* ============================================================
+   * MATHML
+   * ============================================================ */
+  math: HTMLAttributes;
+  mi: HTMLAttributes;
+  mn: HTMLAttributes;
+  mo: HTMLAttributes;
+  ms: HTMLAttributes;
+  mspace: HTMLAttributes;
+  mtext: HTMLAttributes;
+  annotation: HTMLAttributes;
+  semantics: HTMLAttributes;
+
+  /* ============================================================
+   * CUSTOM ELEMENTS
+   *
+   * The renderer itself is intentionally generic and can still
+   * create custom HTML elements.
+   * ============================================================ */
+  [elemName: string]: HTMLAttributes;
+   }
   }
 }
 

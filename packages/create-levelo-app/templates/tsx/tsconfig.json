@@ -3,7 +3,6 @@
     "jsx": "react",
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment",
-    "noEmit": true,
-    "types": ["vite/client", "levelojs"]
+    "noEmit": true
   }
 }

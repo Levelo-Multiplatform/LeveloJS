@@ -1,6 +1,5 @@
 import { state } from 'levelojs';
 import './Mind.css';
-import { Activity, ShieldCheck, Sparkles, ArrowUpRight } from 'kivex-levelo';
 
 function Mind() {
   const [count, setCount] = state(0);
@@ -74,7 +73,7 @@ function Mind() {
               <span class="demo-tag">Live Sandbox</span>
               <h2 class="live-counter heading-font">{count()}</h2>
               <button class="btn-action" onclick={() => setCount(count() + 1)}>
-                Levelo Up <ArrowUpRight style={{ marginLeft: '20px' }} />
+                Levelo Up 🚀
               </button>
             </div>
           </div>
@@ -83,17 +82,17 @@ function Mind() {
         {/* Industry Standard Features Section to Fill Up the Screen */}
         <section class="features-grid">
           <div class="feature-card">
-            <div class="feat-icon"><Activity size={40} class="purple" /></div>
+            <div class="feat-icon">⚛️</div>
             <h3 class="heading-font">Fine-Grained Reactivity</h3>
             <p>No Virtual DOM overhead. Levelo JS tracks changes granularly and updates the real DOM nodes instantly on state modification.</p>
           </div>
           <div class="feature-card">
-            <div class="feat-icon"><ShieldCheck size={40} class="purple" /></div>
+            <div class="feat-icon">🦾</div>
             <h3 class="heading-font">TypeScript Rebirth</h3>
             <p>Fully rewritten with strict type-safety and robust DX, giving you rich autocompletion and structural assurance out-of-the-box.</p>
           </div>
           <div class="feature-card">
-            <div class="feat-icon"><Sparkles size={40} class="purple" /></div>
+            <div class="feat-icon">📦</div>
             <h3 class="heading-font">Vite-Optimized</h3>
             <p>Pre-configured with lightning fast Hot Module Replacement (HMR) ensuring a frictionless development ecosystem.</p>
           </div>
@@ -103,7 +102,7 @@ function Mind() {
 
       {/* Bottom Footer */}
       <footer class="footer">
-        <p>Built with passion under the <a class="brand-bold" href='https://lab.motionmind.me' target='_blank' style={{ marginLeft: '5px', marginRight: '5px'}}>Motion Mind</a> Initiative</p>
+        <p>Built with passion under the <a class="brand-bold" href='https://lab.motionmind.me' target='blank' style={{ marginLeft: '5px', marginRight: '5px'}}>Motion Mind</a> Initiative</p>
       </footer>
     </div>
   );

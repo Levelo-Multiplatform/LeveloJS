@@ -1,8 +1,9 @@
-// levelo.d.ts
-import { h as leveloH } from 'levelojs';
+import type { InternalRenderNode } from "levelojs";
 
-declare global {
-  const h: typeof leveloH;
+declare namespace JSX {
+  type Element = InternalRenderNode;
+
+  interface IntrinsicElements {
+    [elemName: string]: Record<string, any>;
+  }
 }
-
-export {};

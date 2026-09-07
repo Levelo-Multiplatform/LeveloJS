@@ -1,8 +1,8 @@
 {
   "name": "levelojs",
-  "version": "2.1.2",
-  "description": "A core building library for the Levelo JS framework, providing reactive primitives and a Direct Real DOM-based rendering interface for optimized UI construction.",
-  "main": "./dist/index.cjs",
+  "version": "2.2.0",
+  "description": "The core runtime for the Levelo JS framework, including its platform-neutral renderer and web DOM renderer.",
+  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
@@ -14,14 +14,17 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js"
     }
   },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "levelo",

@@ -1,6 +1,16 @@
-//index.tsx
-import { render } from 'levelojs';
-import Mind from './Mind.js';
-import './index.css';
+import { render } from "levelojs";
+import Mind from "./Mind";
+import "./index.css";
 
-render(Mind, document.getElementById('app'));
+const root = document.getElementById("app");
+
+if (!root) {
+  throw new Error('[Levelo Test] Missing #app container.');
+}
+
+render(
+  Mind,
+  root,
+);
+
+console.log("[Levelo Test] Web renderer mounted successfully.");
