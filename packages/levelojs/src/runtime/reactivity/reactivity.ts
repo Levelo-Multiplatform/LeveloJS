@@ -1,76 +1,113 @@
-// src/runtime/reactivity/state.ts
-
 import { setOwner, Owner } from "./owner.js";
 import { isBatching, queue } from "./batch.js";
 
-/**
- * Global tracker to register active effects.
- */
-let activeEffect: (() => void) | null = null;
+type Subscriber = () => void;
+type Dependency = Set<Subscriber>;
 
-/**
- * Registers and executes an effect.
- * @param {Function} callback 
- */
-export function effect(callback: () => void): void {
+/** The effect currently collecting signal dependencies. */
+let activeEffect: ReactiveEffect | null = null;
 
-  const owner: Owner = { cleanups: [] };
+class ReactiveEffect {
+  private readonly dependencies = new Set<Dependency>();
+  private disposed = false;
+  private running = false;
+  private owner: Owner | null = null;
 
-  const execute = () => {
+  constructor(private readonly callback: () => void) {}
 
-    if (owner.cleanups.length > 0) {
-      owner.cleanups.forEach(cb => cb());
-      owner.cleanups = [];
-    }
+  run(): void {
+    if (this.disposed || this.running) return;
 
-    const prevOwner = setOwner(owner);
+    this.running = true;
+    this.cleanupDependencies();
+    this.runOwnerCleanups();
 
-    activeEffect = execute;
+    const owner: Owner = { cleanups: [] };
+    this.owner = owner;
+    const previousOwner = setOwner(owner);
+    const previousEffect = activeEffect;
+    activeEffect = this;
 
     try {
-      callback();
+      this.callback();
     } finally {
-      activeEffect = null;
-      setOwner(prevOwner);
+      activeEffect = previousEffect;
+      setOwner(previousOwner);
+      this.running = false;
     }
-    
-  };
-  execute();
+  }
+
+  track(dependency: Dependency): void {
+    if (this.disposed) return;
+    dependency.add(this.runBound);
+    this.dependencies.add(dependency);
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.cleanupDependencies();
+    this.runOwnerCleanups();
+  }
+
+  private readonly runBound = () => this.run();
+
+  private cleanupDependencies(): void {
+    for (const dependency of this.dependencies) {
+      dependency.delete(this.runBound);
+    }
+    this.dependencies.clear();
+  }
+
+  private runOwnerCleanups(): void {
+    const cleanups = this.owner?.cleanups ?? [];
+    this.owner = null;
+
+    for (const cleanup of cleanups) cleanup();
+  }
 }
 
 export type Getter<T> = () => T;
 export type Setter<T> = (newValue: T | ((prev: T) => T)) => void;
+export type EffectDisposer = () => void;
 
 /**
- * Creates a reactive signal state.
- * @param {any} initialValue 
- * @returns {[Function, Function]} [getter, setter]
+ * Creates a reactive effect and returns a disposer for its subscriptions.
  */
+export function effect(callback: () => void): EffectDisposer {
+  const reactiveEffect = new ReactiveEffect(callback);
+  reactiveEffect.run();
+  return () => reactiveEffect.dispose();
+}
+
+/** Creates a fine-grained reactive signal. */
 export function state<T>(initialValue: T): [Getter<T>, Setter<T>] {
   let value = initialValue;
-  const subscribers = new Set<() => void>();
+  const subscribers = new Set<Subscriber>();
 
   const getter: Getter<T> = () => {
     if (activeEffect) {
-      subscribers.add(activeEffect);
+      activeEffect.track(subscribers);
     }
     return value;
   };
 
   const setter: Setter<T> = (newValue) => {
+    const resolvedValue =
+      typeof newValue === "function"
+        ? (newValue as (prev: T) => T)(value)
+        : newValue;
 
-    // Core functional update logic to support state callbacks safely
-    const resolvedValue = typeof newValue === 'function' ? (newValue as (prev: T) => T)(value) : newValue;
+    if (Object.is(value, resolvedValue)) return;
 
-    if (value !== resolvedValue) {
-      value = resolvedValue;
-      subscribers.forEach((sub) => {
-        if (isBatching) {
-          queue.add(sub)
-        } else {
-          sub();
-        }
-      });
+    value = resolvedValue;
+
+    for (const subscriber of [...subscribers]) {
+      if (isBatching) {
+        queue.add(subscriber);
+      } else {
+        subscriber();
+      }
     }
   };
 

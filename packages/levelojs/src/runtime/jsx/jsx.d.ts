@@ -48,8 +48,7 @@ declare global {
       tabIndex?: Reactive<number>;
       role?: Reactive<string>;
       children?: any;
-      [key: string]: any;
-    }
+    } 
 
     export interface AnchorHTMLAttributes extends HTMLAttributes {
       href?: Reactive<string>;

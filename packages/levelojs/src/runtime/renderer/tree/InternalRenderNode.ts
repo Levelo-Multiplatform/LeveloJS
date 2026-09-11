@@ -1,5 +1,12 @@
 import { RenderNode } from "../interfaces/RenderNode.js";
 
+export interface DynamicChildBinding {
+  readonly getter: () => unknown;
+  readonly initialValue: unknown;
+  current: InternalRenderNode[];
+  lastValue: unknown;
+}
+
 export class InternalRenderNode
   implements RenderNode {
 
@@ -26,6 +33,24 @@ export class InternalRenderNode
       string,
       EventListener
     >();
+
+  /** Reactive property expressions captured during element creation. */
+  readonly reactiveProps =
+    new Map<string, () => unknown>();
+
+  /** Reactive style expressions captured during element creation. */
+  readonly reactiveStyles =
+    new Map<string, () => unknown>();
+
+  /** Reactive event expressions captured during element creation. */
+  readonly reactiveEvents =
+    new Map<string, () => unknown>();
+
+  /** Reactive text expressions owned by this node. */
+  reactiveText: (() => unknown) | null = null;
+
+  /** Dynamic child expressions owned by this node. */
+  readonly dynamicChildren: DynamicChildBinding[] = [];
 
   constructor(
     readonly id: number,

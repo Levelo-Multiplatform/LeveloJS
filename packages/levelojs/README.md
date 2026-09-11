@@ -1,6 +1,26 @@
 # Levelo JS
 
-Levelo JS is a lightweight UI runtime with a platform-neutral render tree and platform-specific renderers.
+Levelo JS is a lightweight fine-grained UI runtime with a shared renderer and platform-specific adapters.
+
+## Rendering model
+
+Levelo does not use a Virtual DOM, tree reconciliation, or tree diffing for reactive updates.
+
+The renderer creates the initial native structure once. Reactive expressions then subscribe to their own signals and update only the native node, property, style, event, or dynamic child they own.
+
+```text
+Signal
+  ↓
+Reactive binding
+  ↓
+Direct renderer update
+  ↓
+Platform adapter
+  ↓
+Native UI
+```
+
+The internal `RenderTree` provides structural information for initial mounting and ownership. It is not compared against a previous tree when a signal changes.
 
 ## Web usage
 
@@ -39,16 +59,32 @@ function App() {
 render(App, document.getElementById("app"));
 ```
 
-The public API owns the renderer construction. Application code does not need to create nodes, snapshots, differs, operation registries, executors, or platform adapters.
+## Fine-grained updates
+
+Reactive JSX expressions are compiled into lazy getters. This lets Levelo attach each expression to the signal it actually reads.
+
+```tsx
+function Counter() {
+  const [count, setCount] = state(0);
+
+  return (
+    <div>
+      <span>{count()}</span>
+      <button onclick={() => setCount(count() + 1)}>
+        Increment
+      </button>
+    </div>
+  );
+}
+```
+
+Changing `count` updates the existing `span` text node. The `Counter` function does not need to execute again, and no tree diff is calculated.
 
 ## Public API
 
-- `h()` creates Levelo render nodes.
+- `h()` creates the platform-neutral render structure used for initial mounting.
 - `render()` mounts a Levelo component into a DOM container.
 - `state()` and the existing reactive primitives remain available through the package entry point.
+- Platform adapters provide the native implementation of renderer operations.
 
-The renderer pipeline is internal:
-
-`h() → RenderTree → Snapshot → Diff → OperationBatch → Commit → WebAdapter → DOM`
-
-The Android renderer will consume the same operation contract without changing the public component API.
+The Android renderer can consume the same shared renderer contracts while providing Android-specific native executors.
