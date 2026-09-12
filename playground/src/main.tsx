@@ -2,7 +2,7 @@ import { render, state } from "levelojs";
 import "./style.css";
 
 function App() {
-  // Defien state event
+  // Define state event
   const [ value, setValue ] = state(0);
 
   return (
@@ -27,7 +27,7 @@ function App() {
 
       <hr />
 
-      {/* State Event Applocation*/}
+      {/* State event application */}
       <section id="text"> 
         <h2>State Event</h2>
         <span>{value()}</span>
