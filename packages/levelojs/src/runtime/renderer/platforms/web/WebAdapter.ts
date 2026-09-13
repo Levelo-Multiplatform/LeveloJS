@@ -22,9 +22,11 @@ export class WebAdapter implements PlatformAdapter<HTMLElement> {
     }
   }
 
-  unmount(host: HTMLElement, root: unknown): void {
-    if (root instanceof Node && root.parentNode === host) {
+  unmount(host: HTMLElement, rootId: number): void {
+    const root = this.nodes.resolve<Node>(rootId);
+    if (root.parentNode === host) {
       host.removeChild(root);
     }
+    this.nodes.remove(rootId);
   }
 }

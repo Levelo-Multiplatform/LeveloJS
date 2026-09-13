@@ -77,8 +77,8 @@ export default Counter;
 
 ## Features
 
-- **Zero Virtual DOM Overhead** - Bypasses VDOM diffing completely; updates the Real DOM nodes directly.
-- **Fine-grained Reactivity** - Targeted structural updates via an independent runtime tracking graph.
+- **No VDOM / No Reconciliation** - Reactive updates never rebuild, compare, or reconcile UI trees; existing native nodes are updated directly.
+- **Fine-grained Reactivity** - Individual reactive bindings update only the native nodes and properties that depend on them.
 - **Hierarchical Ownership** - Native tracking scopes ensure nested reactions dispose properly with zero memory leaks.
 - **TypeScript Powered** - Complete internal codebase rewrite into strict, type-safe structures.
 - **JSX Support** - Standard developer-friendly component structuring with seamless reactive attribute bindings.

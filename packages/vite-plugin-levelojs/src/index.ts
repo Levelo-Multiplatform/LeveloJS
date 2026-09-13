@@ -157,7 +157,14 @@ function transformJSX(
     else if (types.isJSXExpressionContainer(child)) {
       const expression = child.expression;
       if (!types.isJSXEmptyExpression(expression)) {
-        children.push(expression as t.Expression);
+        // JSX expressions become lazy getters so signals can update only the
+        // binding that consumed them instead of rerunning the component.
+        children.push(
+          types.arrowFunctionExpression(
+            [],
+            expression as t.Expression,
+          ),
+        );
       }
     }
     // Recursively transform nested JSX elements while passing types (t) and the active namespace context

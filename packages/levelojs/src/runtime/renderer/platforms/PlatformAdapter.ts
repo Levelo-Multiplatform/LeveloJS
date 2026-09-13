@@ -4,5 +4,5 @@ import { OperationBatch } from "../tree/operations/index.js";
 export interface PlatformAdapter<THost = unknown> {
   execute(batch: OperationBatch): void;
   mount(host: THost, rootId: number): void;
-  unmount(host: THost, root: unknown): void;
+  unmount(host: THost, rootId: number): void;
 }

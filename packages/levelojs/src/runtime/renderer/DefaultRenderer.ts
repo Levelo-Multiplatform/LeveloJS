@@ -1,28 +1,41 @@
 import { Renderer } from "./interfaces/Renderer.js";
 import { RenderTree } from "./tree/RenderTree.js";
-import { TreeSnapshotBuilder } from "./snapshot/TreeSnapshotBuilder.js";
-import { RenderTreeSnapshot } from "./snapshot/RenderTreeSnapshot.js";
-import { TreeDiffer } from "./reconcile/TreeDiffer.js";
 import { PlatformAdapter } from "./platforms/PlatformAdapter.js";
-import { RenderPipeline } from "./pipeline/RenderPipeline.js";
-import { Scheduler } from "./scheduler/Scheduler.js";
+import { DirectMountRenderer } from "./DirectMountRenderer.js";
+import { ReactiveRuntime } from "./ReactiveRuntime.js";
 
+/**
+ * Shared renderer for direct DOM/native mounting.
+ *
+ * A render tree is consumed once to create native nodes. Reactive changes
+ * bypass tree comparison and are handled by ReactiveRuntime bindings.
+ */
 export class DefaultRenderer implements Renderer {
-  private previousSnapshot: RenderTreeSnapshot | null = null;
+  private mounted = false;
 
-  constructor(
-    private readonly adapter: PlatformAdapter,
-    private readonly snapshotBuilder: TreeSnapshotBuilder,
-    private readonly treeDiffer: TreeDiffer,
-    private readonly pipeline: RenderPipeline,
-    private readonly scheduler: Scheduler,
-  ) {}
+  private readonly mountRenderer: DirectMountRenderer;
+  private readonly reactiveRuntime: ReactiveRuntime;
+
+  constructor(private readonly adapter: PlatformAdapter) {
+    this.mountRenderer = new DirectMountRenderer(adapter);
+    this.reactiveRuntime = new ReactiveRuntime(adapter);
+  }
 
   render(tree: RenderTree): void {
-    this.scheduler.schedule(() => {
-      const operations = this.treeDiffer.diff(this.previousSnapshot, tree);
-      this.pipeline.process(operations, this.adapter);
-      this.previousSnapshot = this.snapshotBuilder.build(tree);
-    });
+    if (this.mounted) {
+      throw new Error(
+        "[Levelo] A renderer instance can only mount one tree. Create a new renderer to replace it.",
+      );
+    }
+
+    this.mountRenderer.mount(tree);
+    this.reactiveRuntime.activate(tree.root);
+    this.mounted = true;
+  }
+
+  dispose(tree: RenderTree): void {
+    if (!this.mounted) return;
+    this.reactiveRuntime.dispose(tree.root);
+    this.mounted = false;
   }
 }

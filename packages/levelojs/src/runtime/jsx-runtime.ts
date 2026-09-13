@@ -1,502 +1,234 @@
 import {
   InternalRenderNode,
 } from "./renderer/tree/InternalRenderNode.js";
+import { NodeFactory } from "./renderer/tree/NodeFactory.js";
 
-import {
-  NodeFactory,
-} from "./renderer/tree/NodeFactory.js";
+export type ComponentProps = Record<string, unknown> & {
+  children?: unknown;
+};
 
+export type Component = (
+  props: ComponentProps,
+) => InternalRenderNode | unknown;
 
-export type ComponentProps =
-  Record<string, unknown> & {
-    children?: unknown;
-  };
+export type TagType = string | Component;
 
-
-export type Component =
-  (
-    props: ComponentProps,
-  ) => InternalRenderNode | any;
-
-
-export type TagType =
-  string | Component;
-
-
-
-/*
- * ============================================================
- * WEB NAMESPACES
- * ============================================================
- */
-
-const HTML_NS =
-  "http://www.w3.org/1999/xhtml";
-
-const SVG_NS =
-  "http://www.w3.org/2000/svg";
-
-const MATH_NS =
-  "http://www.w3.org/1998/Math/MathML";
-
-
-
-/*
- * ============================================================
- * BUILD CONTEXT
- * ============================================================
- */
+const HTML_NS = "http://www.w3.org/1999/xhtml";
+const SVG_NS = "http://www.w3.org/2000/svg";
+const MATH_NS = "http://www.w3.org/1998/Math/MathML";
 
 interface BuildContext {
   nextId: number;
 }
 
-
-let activeBuildContext:
-  BuildContext | null = null;
-
-
-let fallbackId = 1;
-
-
-
-/*
- * ============================================================
- * BUILD LIFECYCLE
- * ============================================================
- */
+let activeBuildContext: BuildContext | null = null;
+let fallbackId = 1_000_000;
 
 export function beginBuild(): void {
-
-  activeBuildContext = {
-    nextId: 1,
-  };
-
+  activeBuildContext = { nextId: 1 };
 }
-
 
 export function endBuild(): void {
-
   activeBuildContext = null;
-
 }
-
-
-
-/*
- * ============================================================
- * ID ALLOCATION
- * ============================================================
- */
 
 function allocateId(): number {
-
-  if (activeBuildContext) {
-
-    return activeBuildContext.nextId++;
-
-  }
-
+  if (activeBuildContext) return activeBuildContext.nextId++;
   return fallbackId++;
-
 }
 
-
-
-/*
- * ============================================================
- * EVENT HELPERS
- * ============================================================
- */
-
-function isEventProp(
-  key: string,
-): boolean {
-
-  return (
-    /^on[A-Z]/.test(key) ||
-    /^on[a-z]/.test(key)
-  );
-
+function isEventProp(key: string): boolean {
+  return /^on[A-Z]/.test(key) || /^on[a-z]/.test(key);
 }
 
-
-function eventName(
-  key: string,
-): string {
-
-  return key
-    .slice(2)
-    .toLowerCase();
-
+function eventName(key: string): string {
+  return key.slice(2).toLowerCase();
 }
 
-
-
-/*
- * ============================================================
- * STYLE HELPERS
- * ============================================================
- */
-
-function normalizeStyleProperty(
-  property: string,
-): string {
-
-  if (
-    property.startsWith("--")
-  ) {
-
-    return property;
-
-  }
-
-  return property.replace(
-    /[A-Z]/g,
-    match =>
-      `-${match.toLowerCase()}`,
-  );
-
+function normalizeStyleProperty(property: string): string {
+  if (property.startsWith("--")) return property;
+  return property.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
 }
-
-
-
-/*
- * ============================================================
- * CHILD APPENDING
- * ============================================================
- */
 
 function appendChild(
   parent: InternalRenderNode,
   child: unknown,
   namespace: string | null,
 ): void {
-
-  /*
-   * ----------------------------------------------------------
-   * Ignore empty children
-   * ----------------------------------------------------------
-   */
-
   if (
     child === null ||
     child === undefined ||
     child === false ||
     child === true
   ) {
-
     return;
-
   }
-
-
-
-  /*
-   * ----------------------------------------------------------
-   * Arrays / fragments
-   * ----------------------------------------------------------
-   */
 
   if (Array.isArray(child)) {
-
-    for (
-      const item of child
-    ) {
-
-      appendChild(
-        parent,
-        item,
-        namespace,
-      );
-
-    }
-
+    for (const item of child) appendChild(parent, item, namespace);
     return;
-
   }
 
+  if (typeof child === "function") {
+    // The compiler wraps JSX expressions in getters. The initial value is
+    // materialized now, while the getter is retained for fine-grained updates.
+    const getter = child as () => unknown;
+    const initialValue = getter();
 
+    // Primitive expressions map to one real text node. The text node can then
+    // subscribe directly to the signal without any structural work.
+    if (isTextValue(initialValue)) {
+      const textNode = new NodeFactory().createText(
+        allocateId(),
+        String(initialValue),
+      );
+      textNode.reactiveText = getter;
+      parent.appendChild(textNode);
+      return;
+    }
 
-  /*
-   * ----------------------------------------------------------
-   * Internal render nodes
-   * ----------------------------------------------------------
-   */
+    const nodes = materializeDynamicValue(initialValue, namespace);
 
-  if (
-    child instanceof InternalRenderNode
-  ) {
+    for (const node of nodes) parent.appendChild(node);
 
-    let childNamespace =
-      namespace;
+    parent.dynamicChildren.push({
+      getter,
+      initialValue,
+      current: nodes,
+      lastValue: initialValue,
+    });
+    return;
+  }
 
-
-
-    /*
-     * --------------------------------------------------------
-     * SVG foreignObject boundary
-     * --------------------------------------------------------
-     *
-     * foreignObject itself is an SVG element.
-     *
-     * Its embedded HTML content belongs to
-     * the XHTML namespace.
-     *
-     * SVG
-     *   └── foreignObject   → SVG
-     *         └── div       → HTML
-     *               └── span → HTML
-     *
-     * --------------------------------------------------------
-     */
+  if (child instanceof InternalRenderNode) {
+    let childNamespace = namespace;
 
     if (
       namespace === SVG_NS &&
       parent.type === "foreignObject"
     ) {
-
-      childNamespace =
-        HTML_NS;
-
+      childNamespace = HTML_NS;
     }
-
-
-
-    /*
-     * --------------------------------------------------------
-     * Apply inherited namespace
-     * --------------------------------------------------------
-     */
 
     if (
       childNamespace &&
-      !child.props.has(
-        "__namespace",
-      )
+      !child.props.has("__namespace")
     ) {
-
-      applyNamespace(
-        child,
-        childNamespace,
-      );
-
+      applyNamespace(child, childNamespace);
     }
 
-
-
-    /*
-     * --------------------------------------------------------
-     * Attach to internal tree
-     * --------------------------------------------------------
-     */
-
-    parent.appendChild(
-      child,
-    );
-
+    parent.appendChild(child);
     return;
-
   }
 
-
-
-  /*
-   * ----------------------------------------------------------
-   * Function children
-   * ----------------------------------------------------------
-   */
-
-  if (
-    typeof child === "function"
-  ) {
-
-    appendChild(
-      parent,
-      child(),
-      namespace,
-    );
-
-    return;
-
-  }
-
-
-
-  /*
-   * ----------------------------------------------------------
-   * Primitive children → text nodes
-   * ----------------------------------------------------------
-   */
-
-  const factory =
-    new NodeFactory();
-
-
-  const text =
-    factory.createText(
-      allocateId(),
-      String(child),
-    );
-
-
-  parent.appendChild(
-    text,
+  const node = new NodeFactory().createText(
+    allocateId(),
+    String(child),
   );
 
+  parent.appendChild(node);
 }
 
 
+function isTextValue(value: unknown): boolean {
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "bigint"
+  );
+}
 
-/*
- * ============================================================
- * NAMESPACE PROPAGATION
- * ============================================================
- */
+function materializeDynamicValue(
+  value: unknown,
+  namespace: string | null,
+): InternalRenderNode[] {
+  if (
+    value === null ||
+    value === undefined ||
+    value === false ||
+    value === true
+  ) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    const nodes: InternalRenderNode[] = [];
+    for (const item of value) {
+      nodes.push(...materializeDynamicValue(item, namespace));
+    }
+    return nodes;
+  }
+
+  if (typeof value === "function") {
+    return materializeDynamicValue((value as () => unknown)(), namespace);
+  }
+
+  if (value instanceof InternalRenderNode) {
+    if (namespace && !value.props.has("__namespace")) {
+      applyNamespace(value, namespace);
+    }
+    return [value];
+  }
+
+  return [
+    new NodeFactory().createText(
+      allocateId(),
+      String(value),
+    ),
+  ];
+}
 
 function applyNamespace(
   node: InternalRenderNode,
   namespace: string,
 ): void {
-
-  /*
-   * ----------------------------------------------------------
-   * Set namespace on current node
-   * ----------------------------------------------------------
-   */
-
-  node.props.set(
-    "__namespace",
-    namespace,
-  );
-
-
-
-  /*
-   * ----------------------------------------------------------
-   * Determine namespace for children
-   * ----------------------------------------------------------
-   *
-   * foreignObject creates a namespace boundary:
-   *
-   * foreignObject itself → SVG
-   * its normal children   → HTML/XHTML
-   *
-   * ----------------------------------------------------------
-   */
+  node.props.set("__namespace", namespace);
 
   const childNamespace =
-    namespace === SVG_NS &&
-    node.type === "foreignObject"
+    namespace === SVG_NS && node.type === "foreignObject"
       ? HTML_NS
       : namespace;
 
-
-
-  /*
-   * ----------------------------------------------------------
-   * Propagate to descendants
-   * ----------------------------------------------------------
-   */
-
-  for (
-    const child of node.children
-  ) {
-
-    if (
-      !child.props.has(
-        "__namespace",
-      )
-    ) {
-
-      applyNamespace(
-        child,
-        childNamespace,
-      );
-
+  for (const child of node.children) {
+    if (!child.props.has("__namespace")) {
+      applyNamespace(child, childNamespace);
     }
-
   }
-
 }
-
-
-
-/*
- * ============================================================
- * ELEMENT CREATION
- * ============================================================
- */
 
 export function h(
   tag: TagType,
   props: ComponentProps | null,
   ...children: unknown[]
 ): InternalRenderNode {
+  const safeProps = props ?? {};
 
-  const safeProps =
-    props ?? {};
+  if (typeof tag === "function") {
+    // Preserve getter descriptors so component props remain lazy and can be
+    // consumed by fine-grained bindings instead of being eagerly flattened.
+    const componentProps: ComponentProps = {};
 
+    for (const key of Reflect.ownKeys(safeProps)) {
+      const descriptor = Object.getOwnPropertyDescriptor(safeProps, key);
+      if (descriptor) {
+        Object.defineProperty(componentProps, key, descriptor);
+      }
+    }
 
-
-  /*
-   * ----------------------------------------------------------
-   * Components
-   * ----------------------------------------------------------
-   */
-
-  if (
-    typeof tag === "function"
-  ) {
-
-    return tag({
-
-      ...safeProps,
-
-      children:
-        children.length === 1
-          ? children[0]
-          : children,
-
+    Object.defineProperty(componentProps, "children", {
+      configurable: true,
+      enumerable: true,
+      value: children.length === 1 ? children[0] : children,
+      writable: false,
     });
 
+    return tag(componentProps) as InternalRenderNode;
   }
 
-
-
-  /*
-   * ----------------------------------------------------------
-   * Create internal element
-   * ----------------------------------------------------------
-   */
-
-  const factory =
-    new NodeFactory();
-
-
-  const node =
-    factory.createElement(
-      allocateId(),
-      tag,
-    );
-
-
-
-  /*
-   * ----------------------------------------------------------
-   * Determine namespace
-   * ----------------------------------------------------------
-   *
-   * Explicit namespace wins.
-   *
-   * Otherwise:
-   *
-   * svg  → SVG namespace
-   * math → MathML namespace
-   * other elements → normal HTML
-   *
-   * ----------------------------------------------------------
-   */
+  const node = new NodeFactory().createElement(
+    allocateId(),
+    tag,
+  );
 
   const namespace =
     typeof safeProps.__namespace === "string"
@@ -507,340 +239,131 @@ export function h(
           ? MATH_NS
           : null;
 
+  if (namespace) node.props.set("__namespace", namespace);
 
-
-  /*
-   * ----------------------------------------------------------
-   * Store namespace
-   * ----------------------------------------------------------
-   */
-
-  if (namespace) {
-
-    node.props.set(
-      "__namespace",
-      namespace,
-    );
-
-  }
-
-
-
-  /*
-   * ----------------------------------------------------------
-   * Process properties
-   * ----------------------------------------------------------
-   */
-
-  for (
-    const [
-      rawKey,
-      value,
-    ] of Object.entries(
-      safeProps,
-    )
-  ) {
-
-    /*
-     * Internal / structural properties
-     */
-
+  for (const rawKey of Object.keys(safeProps)) {
     if (
       rawKey === "children" ||
       rawKey === "__namespace" ||
       rawKey === "key"
     ) {
-
       continue;
-
     }
 
+    const descriptor = Object.getOwnPropertyDescriptor(
+      safeProps,
+      rawKey,
+    );
 
+    const isReactive = typeof descriptor?.get === "function";
+    const value = isReactive
+      ? descriptor!.get!.call(safeProps)
+      : safeProps[rawKey];
 
-    /*
-     * className → class
-     */
-
-    if (
-      rawKey === "className"
-    ) {
-
-      node.props.set(
-        "class",
-        value,
-      );
-
+    if (rawKey === "className") {
+      if (isReactive) {
+        node.reactiveProps.set("class", () => descriptor!.get!.call(safeProps));
+      }
+      node.props.set("class", value);
       continue;
-
     }
 
-
-
-    /*
-     * renderString
-     */
-
-    if (
-      rawKey === "renderString"
-    ) {
-
-      node.props.set(
-        "renderString",
-        String(value),
-      );
-
+    if (rawKey === "renderString") {
+      const getter = isReactive
+        ? () => descriptor!.get!.call(safeProps)
+        : null;
+      if (getter) node.reactiveProps.set("renderString", getter);
+      node.props.set("renderString", String(value));
       continue;
-
     }
 
-
-
-    /*
-     * --------------------------------------------------------
-     * Style
-     * --------------------------------------------------------
-     */
-
-    if (
-      rawKey === "style"
-    ) {
-
-      if (
-        typeof value === "string"
-      ) {
-
-        node.props.set(
-          "style",
-          value,
-        );
-
-      } else if (
-        value &&
-        typeof value === "object"
-      ) {
-
-        for (
-          const [
-            property,
-            styleValue,
-          ] of Object.entries(
-            value as Record<
-              string,
-              unknown
-            >,
-          )
-        ) {
-
+    if (rawKey === "style") {
+      if (typeof value === "string") {
+        if (isReactive) {
+          node.reactiveProps.set("style", () => descriptor!.get!.call(safeProps));
+        }
+        node.props.set("style", value);
+      } else if (value && typeof value === "object") {
+        const styles = value as Record<string, unknown>;
+        for (const [property, styleValue] of Object.entries(styles)) {
+          const normalized = normalizeStyleProperty(property);
           if (
             styleValue !== null &&
             styleValue !== undefined &&
             styleValue !== false
           ) {
-
-            node.styles.set(
-              normalizeStyleProperty(
-                property,
-              ),
-              String(styleValue),
-            );
-
+            node.styles.set(normalized, String(styleValue));
           }
-
         }
 
+        if (isReactive) {
+          node.reactiveProps.set("__reactiveStyleObject", () => descriptor!.get!.call(safeProps));
+        }
       }
-
       continue;
-
     }
 
+    if (isEventProp(rawKey)) {
+      const event = eventName(rawKey);
+      if (isReactive) {
+        node.reactiveEvents.set(event, () => descriptor!.get!.call(safeProps));
+      } else if (typeof value === "function") {
+        node.events.set(event, value as EventListener);
+      }
+      continue;
+    }
 
-
-    /*
-     * --------------------------------------------------------
-     * Events
-     * --------------------------------------------------------
-     */
+    if (isReactive) {
+      node.reactiveProps.set(rawKey, () => descriptor!.get!.call(safeProps));
+    }
 
     if (
-      isEventProp(rawKey) &&
-      typeof value === "function"
+      value !== null &&
+      value !== undefined &&
+      value !== false
     ) {
-
-      node.events.set(
-        eventName(rawKey),
-        value as EventListener,
-      );
-
-      continue;
-
+      node.props.set(rawKey, value);
     }
-
-
-
-    /*
-     * --------------------------------------------------------
-     * Ignore empty property values
-     * --------------------------------------------------------
-     */
-
-    if (
-      value === null ||
-      value === undefined ||
-      value === false
-    ) {
-
-      continue;
-
-    }
-
-
-
-    /*
-     * --------------------------------------------------------
-     * Normal property
-     * --------------------------------------------------------
-     */
-
-    node.props.set(
-      rawKey,
-      value,
-    );
-
   }
 
-
-
-  /*
-   * ----------------------------------------------------------
-   * Append children
-   * ----------------------------------------------------------
-   */
-
-  for (
-    const child of children
-  ) {
-
-    appendChild(
-      node,
-      child,
-      namespace,
-    );
-
+  for (const child of children) {
+    appendChild(node, child, namespace);
   }
-
-
 
   return node;
-
 }
-
-
-
-/*
- * ============================================================
- * JSX
- * ============================================================
- */
 
 export function jsx(
   tag: TagType,
   props: ComponentProps | null,
 ): InternalRenderNode {
+  const safeProps = props ?? {};
+  const children = safeProps.children;
 
-  const safeProps =
-    props ?? {};
-
-  const children =
-    safeProps.children;
-
-
-
-  if (
-    Object.prototype.hasOwnProperty.call(
-      safeProps,
-      "children",
-    )
-  ) {
-
-    const {
-      children: _children,
-      ...rest
-    } = safeProps;
-
-
-
+  if (Object.prototype.hasOwnProperty.call(safeProps, "children")) {
+    const { children: _children, ...rest } = safeProps;
     return h(
       tag,
       rest,
-      ...(
-        Array.isArray(children)
-          ? children
-          : [children]
-      ),
+      ...(Array.isArray(children) ? children : [children]),
     );
-
   }
 
-
-
-  return h(
-    tag,
-    safeProps,
-  );
-
+  return h(tag, safeProps);
 }
-
-
-
-/*
- * ============================================================
- * JSXS
- * ============================================================
- */
 
 export function jsxs(
   tag: TagType,
   props: ComponentProps | null,
 ): InternalRenderNode {
-
-  return jsx(
-    tag,
-    props,
-  );
-
+  return jsx(tag, props);
 }
 
-
-
-/*
- * ============================================================
- * FRAGMENT
- * ============================================================
- */
-
-export const Fragment = ({
-  children,
-}: ComponentProps): InternalRenderNode => {
-
-  const factory =
-    new NodeFactory();
-
-
-  const fragment =
-    factory.createElement(
-      allocateId(),
-      "div",
-    );
-
-
-  appendChild(
-    fragment,
-    children,
-    null,
+export const Fragment = ({ children }: ComponentProps): InternalRenderNode => {
+  const fragment = new NodeFactory().createElement(
+    allocateId(),
+    "div",
   );
-
-
+  appendChild(fragment, children, null);
   return fragment;
-
 };
