@@ -6,6 +6,7 @@ h1 {
 h1 span {
     color: blueviolet;
     margin-left: 10px;
+    cursor: pointer;
 }
 
 div p {
@@ -25,4 +26,5 @@ button {
     outline: none;
     border-radius: 8px;
     width: 100%;
+    cursor: pointer;
 }
