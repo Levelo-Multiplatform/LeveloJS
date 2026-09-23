@@ -1,0 +1,8 @@
+{
+    "name": "levelo-wasm-build",
+    "private": true,
+    "scripts": {
+      "build": "wasm-pack build --target bundler",
+      "build:node": "wasm-pack build --target nodejs --out-dir pkg-node"
+    }
+  }
