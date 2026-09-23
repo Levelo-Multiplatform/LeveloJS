@@ -163,6 +163,10 @@ impl NodeStore {
         self.nodes.get_mut(&id)
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
+
     /// Removes a node and repairs all structural references to it.
     ///
     /// Children are detached from the removed node but remain alive in the

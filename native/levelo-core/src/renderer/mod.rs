@@ -205,6 +205,11 @@ impl Renderer {
         self.nodes.len()
     }
 
+    /// Iterates over every node currently held by the renderer.
+    pub fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.iter()
+    }
+
     /// Registers a node whose ID was allocated outside the Rust renderer.
     ///
     /// The allocator is advanced beyond externally supplied IDs to prevent

@@ -2,54 +2,46 @@
  * @vitest-environment node
  */
 import { describe, it, expect, beforeAll } from "vitest";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { readFileSync } from "node:fs";
 
-/**
- * Integration test for the real WASM module.
- *
- * Loads the compiled `levelo_wasm.js` from `dist/wasm/` directly, bypassing
- * the bridge's dynamic import trick so the test runs in Node without a
- * browser. Exercises the full JS → NativeOperation → Rust pipeline.
- *
- * Prerequisites:
- *
- *   - `npm run build` has been run at least once, so `dist/wasm/` exists.
- *   - `process.cwd()` is `packages/levelojs` (true when run via `npm test`).
- */
-
-interface WasmInitInput {
-  module_or_path?: unknown;
-}
-
-interface WasmModule {
-  default: (input?: WasmInitInput) => Promise<unknown>;
-  WasmRenderer: new () => {
-    execute_batch(operations: unknown[]): void;
-    node_count(): number;
-    free(): void;
+interface WasmRendererInstance {
+  execute_batch(operations: unknown[]): void;
+  node_count(): number;
+  free(): void;
+  get_node(id: number): {
+    id: number;
+    kind: string;
+    parent: number | null;
+    children: number[];
+    properties: Record<string, unknown>;
+    styles: Record<string, string>;
+    text: string | null;
+  };
+  get_children(id: number): number[];
+  root(): number;
+  serialize(): {
+    root: number;
+    nodes: Record<string, { id: number; kind: string; text: string | null }>;
   };
 }
 
-const wasmDir = resolve(process.cwd(), "dist/wasm");
-const wasmPath = resolve(wasmDir, "levelo_wasm.js");
-const wasmBinaryPath = resolve(wasmDir, "levelo_wasm_bg.wasm");
+interface WasmModule {
+  WasmRenderer: new () => WasmRendererInstance;
+}
+
+const pkgNodeDir = resolve(
+  process.cwd(),
+  "../../native/levelo-bindings/wasm/pkg-node",
+);
 
 let module: WasmModule;
 
-beforeAll(async () => {
-  module = (await import(pathToFileURL(wasmPath).href)) as WasmModule;
+beforeAll(() => {
+  const require = createRequire(import.meta.url);
+  const path = resolve(pkgNodeDir, "levelo_wasm.js");
 
-  // Pass the .wasm binary directly. wasm-bindgen's default loader uses
-  // `fetch()` on a `file://` URL, which is unreliable in Node. Supplying
-  // the raw bytes bypasses that path entirely.
-  //
-  // wasm-bindgen 0.2.95+ expects an options object rather than a bare
-  // BufferSource argument.
-  const wasmBinary = readFileSync(wasmBinaryPath);
-
-  await module.default({ module_or_path: wasmBinary });
+  module = require(path) as WasmModule;
 });
 
 describe("real WASM module", () => {
@@ -127,9 +119,7 @@ describe("real WASM module", () => {
     const renderer = new module.WasmRenderer();
 
     expect(() =>
-      renderer.execute_batch([
-        { type: "ThisDoesNotExist", node: 1 },
-      ]),
+      renderer.execute_batch([{ type: "ThisDoesNotExist", node: 1 }]),
     ).toThrow(/Unsupported native operation/);
 
     renderer.free();
@@ -143,6 +133,80 @@ describe("real WASM module", () => {
         { type: "AddEventListener", node: 1, event: "click" },
       ]),
     ).toThrow(/Event operations must remain on the JavaScript platform layer/);
+
+    renderer.free();
+  });
+});
+
+describe("WASM query methods", () => {
+  it("returns a full node snapshot", () => {
+    const renderer = new module.WasmRenderer();
+
+    renderer.execute_batch([
+      { type: "CreateElement", node: 1, elementType: "div" },
+      { type: "SetProperty", node: 1, name: "id", value: "app" },
+      { type: "SetStyle", node: 1, name: "color", value: "red" },
+    ]);
+
+    const snapshot = renderer.get_node(1);
+
+    expect(snapshot.id).toBe(1);
+    expect(snapshot.kind).toBe("element");
+    expect(snapshot.parent).toBeNull();
+    expect(snapshot.children).toEqual([]);
+    expect(snapshot.properties).toEqual({ id: "app" });
+    expect(snapshot.styles).toEqual({ color: "red" });
+    expect(snapshot.text).toBeNull();
+
+    renderer.free();
+  });
+
+  it("returns children in order", () => {
+    const renderer = new module.WasmRenderer();
+
+    renderer.execute_batch([
+      { type: "CreateElement", node: 1, elementType: "div" },
+      { type: "CreateText", node: 2, text: "a" },
+      { type: "CreateText", node: 3, text: "b" },
+      { type: "AppendChild", parent: 1, child: 2 },
+      { type: "AppendChild", parent: 1, child: 3 },
+    ]);
+
+    expect(renderer.get_children(1)).toEqual([2, 3]);
+
+    renderer.free();
+  });
+
+  it("returns the root node ID", () => {
+    const renderer = new module.WasmRenderer();
+
+    expect(renderer.root()).toBe(0);
+
+    renderer.execute_batch([
+      { type: "CreateElement", node: 42, elementType: "div" },
+    ]);
+
+    expect(renderer.root()).toBe(42);
+
+    renderer.free();
+  });
+
+  it("serializes the full tree", () => {
+    const renderer = new module.WasmRenderer();
+
+    renderer.execute_batch([
+      { type: "CreateElement", node: 1, elementType: "div" },
+      { type: "CreateText", node: 2, text: "hello" },
+      { type: "AppendChild", parent: 1, child: 2 },
+    ]);
+
+    const snapshot = renderer.serialize();
+
+    expect(snapshot.root).toBe(1);
+    expect(Object.keys(snapshot.nodes).sort()).toEqual(["1", "2"]);
+    expect(snapshot.nodes["1"].kind).toBe("element");
+    expect(snapshot.nodes["2"].kind).toBe("text");
+    expect(snapshot.nodes["2"].text).toBe("hello");
 
     renderer.free();
   });

@@ -4,14 +4,20 @@ use wasm_bindgen::prelude::*;
 use levelo_core::{
     operations::{Operation, OperationBatch},
     renderer::Renderer,
-    tree::NodeId,
+    tree::{Node, NodeId, NodeKind},
     value::Value,
 };
 
 /// WASM-facing wrapper around the shared Levelo renderer core.
 ///
 /// This wrapper contains no DOM or platform logic. It only translates
-/// JavaScript operations into the shared renderer representation.
+/// JavaScript operations into the shared renderer representation, and
+/// exposes the resulting tree back to JavaScript for inspection.
+///
+/// Node IDs are `u64` internally but cross the JS boundary as `f64`.
+/// JavaScript's `Number` type is `f64`, node IDs never exceed 2^53 in
+/// any realistic UI tree, and requiring callers to pass `BigInt` for
+/// every node handle would make the API awkward for TypeScript users.
 #[wasm_bindgen]
 pub struct WasmRenderer {
     inner: Renderer,
@@ -42,52 +48,52 @@ impl WasmRenderer {
     }
 
     /// Creates an element node and returns its stable node ID.
-    pub fn create_element(&mut self, element_type: String) -> Result<u64, JsValue> {
+    pub fn create_element(&mut self, element_type: String) -> Result<f64, JsValue> {
         let node = self.inner.allocate_node_id();
 
         self.inner
             .apply_operation(&Operation::CreateElement { node, element_type })
             .map_err(core_error)?;
 
-        Ok(node.get())
+        Ok(node.get() as f64)
     }
 
     /// Creates a text node and returns its stable node ID.
-    pub fn create_text(&mut self, text: String) -> Result<u64, JsValue> {
+    pub fn create_text(&mut self, text: String) -> Result<f64, JsValue> {
         let node = self.inner.allocate_node_id();
 
         self.inner
             .apply_operation(&Operation::CreateText { node, text })
             .map_err(core_error)?;
 
-        Ok(node.get())
+        Ok(node.get() as f64)
     }
 
     /// Attaches an existing node to another node.
-    pub fn append_child(&mut self, parent: u64, child: u64) -> Result<(), JsValue> {
+    pub fn append_child(&mut self, parent: f64, child: f64) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::AppendChild {
-                parent: NodeId::new(parent),
-                child: NodeId::new(child),
+                parent: NodeId::new(parent as u64),
+                child: NodeId::new(child as u64),
             })
             .map_err(core_error)
     }
 
     /// Removes a child from its parent.
-    pub fn remove_child(&mut self, parent: u64, child: u64) -> Result<(), JsValue> {
+    pub fn remove_child(&mut self, parent: f64, child: f64) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::RemoveChild {
-                parent: NodeId::new(parent),
-                child: NodeId::new(child),
+                parent: NodeId::new(parent as u64),
+                child: NodeId::new(child as u64),
             })
             .map_err(core_error)
     }
 
     /// Deletes a node from the renderer bookkeeping store.
-    pub fn delete_node(&mut self, node: u64) -> Result<(), JsValue> {
+    pub fn delete_node(&mut self, node: f64) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::DeleteNode {
-                node: NodeId::new(node),
+                node: NodeId::new(node as u64),
             })
             .map_err(core_error)
     }
@@ -95,7 +101,7 @@ impl WasmRenderer {
     /// Sets a property using a real JavaScript value.
     pub fn set_property(
         &mut self,
-        node: u64,
+        node: f64,
         name: String,
         value: JsValue,
     ) -> Result<(), JsValue> {
@@ -103,7 +109,7 @@ impl WasmRenderer {
 
         self.inner
             .apply_operation(&Operation::SetProperty {
-                node: NodeId::new(node),
+                node: NodeId::new(node as u64),
                 name,
                 value,
             })
@@ -111,10 +117,10 @@ impl WasmRenderer {
     }
 
     /// Removes a property from a node.
-    pub fn remove_property(&mut self, node: u64, name: String) -> Result<(), JsValue> {
+    pub fn remove_property(&mut self, node: f64, name: String) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::RemoveProperty {
-                node: NodeId::new(node),
+                node: NodeId::new(node as u64),
                 name,
             })
             .map_err(core_error)
@@ -123,13 +129,13 @@ impl WasmRenderer {
     /// Sets a style value on a node.
     pub fn set_style(
         &mut self,
-        node: u64,
+        node: f64,
         name: String,
         value: String,
     ) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::SetStyle {
-                node: NodeId::new(node),
+                node: NodeId::new(node as u64),
                 name,
                 value,
             })
@@ -137,20 +143,20 @@ impl WasmRenderer {
     }
 
     /// Removes a style value from a node.
-    pub fn remove_style(&mut self, node: u64, name: String) -> Result<(), JsValue> {
+    pub fn remove_style(&mut self, node: f64, name: String) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::RemoveStyle {
-                node: NodeId::new(node),
+                node: NodeId::new(node as u64),
                 name,
             })
             .map_err(core_error)
     }
 
     /// Sets the text value of a node.
-    pub fn set_text(&mut self, node: u64, text: String) -> Result<(), JsValue> {
+    pub fn set_text(&mut self, node: f64, text: String) -> Result<(), JsValue> {
         self.inner
             .apply_operation(&Operation::SetText {
-                node: NodeId::new(node),
+                node: NodeId::new(node as u64),
                 text,
             })
             .map_err(core_error)
@@ -159,6 +165,182 @@ impl WasmRenderer {
     /// Returns the number of nodes currently tracked by the renderer.
     pub fn node_count(&self) -> usize {
         self.inner.node_count()
+    }
+
+    /// Returns a snapshot of a single node's state.
+    ///
+    /// The returned object has the shape:
+    ///
+    /// ```js
+    /// {
+    ///   id: number,
+    ///   kind: "element" | "text",
+    ///   parent: number | null,
+    ///   children: number[],
+    ///   properties: { [name: string]: unknown },
+    ///   styles: { [name: string]: string },
+    ///   text: string | null,
+    /// }
+    /// ```
+    ///
+    /// Throws if the node ID is not tracked.
+    pub fn get_node(&self, node: f64) -> Result<JsValue, JsValue> {
+        let node_id = node as u64;
+        let id = NodeId::new(node_id);
+
+        let target = self
+            .inner
+            .node(id)
+            .ok_or_else(|| JsValue::from_str(&format!("[Levelo] unknown node {node_id}")))?;
+
+        node_to_js_value(target)
+    }
+
+    /// Returns the child node IDs of a node as a JS array of numbers.
+    pub fn get_children(&self, node: f64) -> Result<Array, JsValue> {
+        let node_id = node as u64;
+        let id = NodeId::new(node_id);
+
+        let target = self
+            .inner
+            .node(id)
+            .ok_or_else(|| JsValue::from_str(&format!("[Levelo] unknown node {node_id}")))?;
+
+        let array = Array::new();
+
+        for child in target.children() {
+            array.push(&JsValue::from_f64(child.get() as f64));
+        }
+
+        Ok(array)
+    }
+
+    /// Returns the root node ID, or 0 if the tree is empty.
+    ///
+    /// The root is defined as any node with no parent. If multiple such
+    /// nodes exist, the one with the lowest ID is returned.
+    pub fn root(&self) -> f64 {
+        let mut root: Option<NodeId> = None;
+
+        for node in self.inner.nodes() {
+            if node.parent().is_none() {
+                match root {
+                    Some(current) if current <= node.id() => {}
+                    _ => root = Some(node.id()),
+                }
+            }
+        }
+
+        root.map(|id| id.get() as f64).unwrap_or(0.0)
+    }
+
+    /// Returns a snapshot of the entire render tree.
+    ///
+    /// The returned object has the shape:
+    ///
+    /// ```js
+    /// {
+    ///   root: number,
+    ///   nodes: { [id: number]: { id, kind, parent, children, properties, styles, text } }
+    /// }
+    /// ```
+    pub fn serialize(&self) -> Result<JsValue, JsValue> {
+        let root = self.root();
+
+        let nodes = Object::new();
+
+        for node in self.inner.nodes() {
+            let key = JsValue::from_str(&node.id().get().to_string());
+            let value = node_to_js_value(node)?;
+
+            Reflect::set(&nodes, &key, &value)?;
+        }
+
+        let result = Object::new();
+
+        Reflect::set(&result, &JsValue::from_str("root"), &JsValue::from_f64(root))?;
+        Reflect::set(&result, &JsValue::from_str("nodes"), &nodes)?;
+
+        Ok(result.into())
+    }
+}
+
+/// Serializes a single node into a JS object.
+fn node_to_js_value(node: &Node) -> Result<JsValue, JsValue> {
+    let object = Object::new();
+
+    Reflect::set(
+        &object,
+        &JsValue::from_str("id"),
+        &JsValue::from_f64(node.id().get() as f64),
+    )?;
+
+    let kind = match node.kind() {
+        NodeKind::Element => "element",
+        NodeKind::Text => "text",
+    };
+
+    Reflect::set(&object, &JsValue::from_str("kind"), &JsValue::from_str(kind))?;
+
+    let parent = match node.parent() {
+        Some(id) => JsValue::from_f64(id.get() as f64),
+        None => JsValue::NULL,
+    };
+
+    Reflect::set(&object, &JsValue::from_str("parent"), &parent)?;
+
+    let children = Array::new();
+    for child in node.children() {
+        children.push(&JsValue::from_f64(child.get() as f64));
+    }
+    Reflect::set(&object, &JsValue::from_str("children"), &children)?;
+
+    let properties = Object::new();
+    for (name, value) in node.properties() {
+        let js_value = core_value_to_js_value(value)?;
+        Reflect::set(&properties, &JsValue::from_str(name), &js_value)?;
+    }
+    Reflect::set(&object, &JsValue::from_str("properties"), &properties)?;
+
+    let styles = Object::new();
+    for (name, value) in node.styles() {
+        Reflect::set(&styles, &JsValue::from_str(name), &JsValue::from_str(value))?;
+    }
+    Reflect::set(&object, &JsValue::from_str("styles"), &styles)?;
+
+    let text = match node.text() {
+        Some(value) => JsValue::from_str(value),
+        None => JsValue::NULL,
+    };
+    Reflect::set(&object, &JsValue::from_str("text"), &text)?;
+
+    Ok(object.into())
+}
+
+/// Converts a core value back into a JavaScript value.
+fn core_value_to_js_value(value: &Value) -> Result<JsValue, JsValue> {
+    match value {
+        Value::Null => Ok(JsValue::NULL),
+        Value::Bool(b) => Ok(JsValue::from_bool(*b)),
+        Value::Number(n) => Ok(JsValue::from_f64(*n)),
+        Value::String(s) => Ok(JsValue::from_str(s)),
+
+        Value::Array(items) => {
+            let array = Array::new();
+            for item in items {
+                array.push(&core_value_to_js_value(item)?);
+            }
+            Ok(array.into())
+        }
+
+        Value::Object(map) => {
+            let object = Object::new();
+            for (key, item) in map {
+                let js_value = core_value_to_js_value(item)?;
+                Reflect::set(&object, &JsValue::from_str(key), &js_value)?;
+            }
+            Ok(object.into())
+        }
     }
 }
 
@@ -403,7 +585,6 @@ fn js_value_to_core_value(value: JsValue) -> Result<Value, JsValue> {
 fn core_error(error: levelo_core::error::CoreError) -> JsValue {
     JsValue::from_str(&error.to_string())
 }
-
 
 /// Returns the version of the shared Levelo native core.
 #[wasm_bindgen]
