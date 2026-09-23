@@ -1,130 +1,149 @@
-// router.ts - Optimized Enterprise Routing Engine for Levelo JS (Version 2.0.0 Specs)
-import { h } from './jsx-runtime.js';
-import { applyHeadUpdates } from './head.js';
-import { getClean404Component } from './templates/error404.js';
+// src/runtime/router.ts
+import { h } from "./jsx-runtime.js";
+import { render, unmount } from "./dom.js";
+import { applyHeadUpdates } from "./head.js";
+import { getClean404Component } from "./templates/error404.js";
+import { InternalRenderNode } from "./renderer/tree/InternalRenderNode.js";
 
-// Global registry to keep track of the dynamic route-to-component mappings
-const routes = new Map<string, (props: any) => Element>();
+/**
+ * Mapping of normalized path -> component factory.
+ */
+type RouteComponent = () => InternalRenderNode;
 
-// Global listener callback queue to trigger DOM view swaps when URL shifts
+const routes = new Map<string, RouteComponent>();
+
+/**
+ * Subscribers notified when the browser path changes.
+ */
 const routeListeners = new Set<(path: string) => void>();
 
 /**
- * Programmatically triggers all registered view listeners to force a re-render
+ * Public navigation entry point. Any internal link click routes through here.
  */
-function notifyRouteListeners() {
-  const currentPath = window.location.pathname;
-  routeListeners.forEach(listener => listener(currentPath));
+export function navigate(path: string): void {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === path) return;
+
+  window.history.pushState({}, "", path);
+  notifyRouteListeners();
 }
 
-// Core Navigation Interceptor Layer (Global Anchor Tracking)
-if (typeof window !== 'undefined') {
-  // Intercept browser back/forward buttons (popstate) natively
-  window.addEventListener('popstate', () => {
+function notifyRouteListeners(): void {
+  const currentPath = window.location.pathname;
+  routeListeners.forEach((listener) => listener(currentPath));
+}
+
+function normalizePath(input: string): string {
+  let path = input;
+
+  if (path.endsWith("/index.html")) {
+    path = path.replace(/\/index\.html$/, "");
+  }
+
+  if (path.length > 1 && path.endsWith("/")) {
+    path = path.replace(/\/+$/, "");
+  }
+
+  return path === "" ? "/" : path;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("popstate", () => {
     notifyRouteListeners();
   });
 
-  // GLOBAL ANCHOR INTERCEPTION: Listen to ALL clicks on the document
-  document.addEventListener('click', (e: MouseEvent) => {
-    const anchor = (e.target as HTMLElement).closest('a');
-    
+  document.addEventListener("click", (event: MouseEvent) => {
+    const anchor = (event.target as HTMLElement | null)?.closest("a");
     if (!anchor) return;
-    
-    const href = anchor.getAttribute('href');
-    if (!href || href.startsWith('http://') || href.startsWith('https://') || (href.startsWith('#') && href.length > 1) || anchor.target === '_blank') {
-      return; 
+
+    const href = anchor.getAttribute("href");
+    if (
+      !href ||
+      href.startsWith("http://") ||
+      href.startsWith("https://") ||
+      (href.startsWith("#") && href.length > 1) ||
+      anchor.target === "_blank"
+    ) {
+      return;
     }
 
-    // Intercept internal application routes safely and eliminate raw browser refreshes
-    e.preventDefault();
-    
-    if (window.location.pathname !== href) {
-      window.history.pushState({}, '', href);
-      notifyRouteListeners(); // Push instantaneous update to the active <Pages> container
-    }
+    event.preventDefault();
+    navigate(href);
   });
 }
 
-interface PageProps {
+export interface PageProps {
   path: string;
-  component: (props: any) => Element;
+  component: RouteComponent;
 }
 
 /**
- * Configuration schema defining a standalone path pattern matching node.
- * Executed via Levelo's h() Factory.
+ * Route declaration. Consumed by `<Pages>` at mount time.
  */
-export function Page(props: PageProps): Record<string, any> {
+export function Page(props: PageProps): Record<string, unknown> {
   return {
-    type: 'PAGE_CONFIG',
+    type: "PAGE_CONFIG",
     path: props.path,
-    component: props.component
+    component: props.component,
   };
 }
 
-interface PagesProps {
-  children: any | any[];
+export interface PagesProps {
+  children?: unknown | unknown[];
 }
 
 /**
- * High-performance Viewport Container that automatically swaps structural page nodes dynamically.
+ * Viewport container that swaps its mounted component when the browser
+ * location changes.
  */
 export function Pages(props: PagesProps): HTMLElement {
-  const container = document.createElement('div');
-  container.className = 'levelo-viewport-wrapper';
+  const container = document.createElement("div");
+  container.className = "levelo-viewport-wrapper";
 
-  // Extract child configuration streams
-  const children = Array.isArray(props.children) ? props.children : [props.children];
-  
-  children.forEach(child => {
-    // If the child configuration is an object containing valid page descriptors, register it
-    if (child && child.type === 'PAGE_CONFIG') {
-      routes.set(child.path, child.component);
+  const children =
+    props.children === undefined
+      ? []
+      : Array.isArray(props.children)
+        ? props.children
+        : [props.children];
+
+  for (const child of children) {
+    if (
+      child &&
+      typeof child === "object" &&
+      (child as { type?: unknown }).type === "PAGE_CONFIG"
+    ) {
+      const page = child as unknown as PageProps;
+      routes.set(normalizePath(page.path), page.component);
     }
-  });
+  }
 
-  // Track the currently rendered DOM node to allow precision swapping
-  let currentRenderedNode: Element | null = null;
-
-  /**
-   * Evaluates the current location and replaces the active view context cleanly
-   */
   const renderActiveRoute = (currentPath: string): void => {
-    let normalizedPath = currentPath.length > 1 && currentPath.endsWith('/') ? currentPath.replace(/\/+$/, '') : currentPath;
-    
-    if (normalizedPath.endsWith('index.html')) {
-      normalizedPath = currentPath.replace(/\/index\.html/g, '');
-    }
-    
-    if (normalizedPath === '') normalizedPath = '/';
-    // Purge old view context to prevent structural leakage
-    if (currentRenderedNode) {
-      // TODO: Call Layer 3 state/effect cleanups for the unmounting page here
-      container.removeChild(currentRenderedNode);
-      currentRenderedNode = null;
+    // The Pages element may have been detached from the DOM by a parent
+    // unmount. In that case, stop listening rather than leak.
+    if (!container.isConnected) {
+      routeListeners.delete(renderActiveRoute);
+      return;
     }
 
-    // Lookup matching component view or default to root / 404 handler
-    const TargetComponent = routes.get(normalizedPath) || getClean404Component(h);
+    const normalized = normalizePath(currentPath);
+    const Component = routes.get(normalized);
 
-    // CRITICAL UPGRADE: Build the target component view node via our Levelo h() factory
-    // This allows children to inherit dynamic state scope safely during construction
-    const instance = h(TargetComponent, null);
-    
-    if (instance instanceof Element) {
-      currentRenderedNode = instance;
-      container.appendChild(currentRenderedNode);
-      
-      window.scrollTo(0, 0);
+    unmount(container);
+
+    if (Component) {
+      render(Component, container);
+    } else {
+      render(getClean404Component(h), container);
     }
-    //update head
+
+    window.scrollTo(0, 0);
     applyHeadUpdates();
   };
 
-  // Subscribe this container instance to global location updates
   routeListeners.add(renderActiveRoute);
 
-  // Trigger instantaneous initial render boot matching the active deep-linked URL
+  // Render once synchronously so the initial route is visible immediately.
   renderActiveRoute(window.location.pathname);
 
   return container;

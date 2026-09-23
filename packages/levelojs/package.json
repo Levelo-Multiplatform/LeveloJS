@@ -2,7 +2,7 @@
   "name": "levelojs",
   "version": "2.2.0",
   "description": "The core runtime for the Levelo JS framework, including its platform-neutral renderer and web DOM renderer.",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
@@ -14,17 +14,25 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
     },
     "./jsx-runtime": {
       "types": "./dist/jsx-runtime.d.ts",
-      "import": "./dist/jsx-runtime.js"
-    }
+      "import": "./dist/jsx-runtime.js",
+      "require": "./dist/jsx-runtime.cjs",
+      "default": "./dist/jsx-runtime.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-wasm.mjs",
     "dev": "tsup --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
   },
   "keywords": [
     "levelo",
@@ -53,7 +61,11 @@
   },
   "homepage": "https://levelojs.motionmind.me",
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@vitest/ui": "^5.0.1",
+    "jsdom": "^29.1.1",
     "tsup": "^8.5.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
   }
 }

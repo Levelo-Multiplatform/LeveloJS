@@ -3,6 +3,8 @@ import { RenderNode } from "../interfaces/RenderNode.js";
 export interface DynamicChildBinding {
   readonly getter: () => unknown;
   readonly initialValue: unknown;
+  readonly position: number;
+  readonly initialLength: number;
   current: InternalRenderNode[];
   lastValue: unknown;
 }

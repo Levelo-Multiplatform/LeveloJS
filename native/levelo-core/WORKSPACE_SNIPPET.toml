@@ -1,0 +1,9 @@
+# If LeveloJS does not already have a root Cargo workspace, add this to a
+# repository-root Cargo.toml. If one already exists, add the member below to
+# its existing `members` list instead.
+
+[workspace]
+resolver = "2"
+members = [
+    "packages/levelo-core",
+]

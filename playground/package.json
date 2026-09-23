@@ -19,6 +19,7 @@
   "devDependencies": {
     "@babel/plugin-syntax-jsx": "^8.0.1",
     "@babel/plugin-transform-typescript": "^8.0.1",
-    "vite": "^8.1.4"
+    "vite": "^8.1.4",
+    "vite-plugin-levelojs": "file:..\\packages\\vite-plugin-levelojs"
   }
 }

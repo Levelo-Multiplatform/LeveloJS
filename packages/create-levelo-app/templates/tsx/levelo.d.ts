@@ -1,9 +1,4 @@
-import type { InternalRenderNode } from "levelojs";
-
-declare namespace JSX {
-  type Element = InternalRenderNode;
-
-  interface IntrinsicElements {
-    [elemName: string]: Record<string, any>;
-  }
+declare module "*.css" {
+  const content: string;
+  export default content;
 }

@@ -8,20 +8,42 @@
 
 </div>
 
-## 💥 What's New (v2.1.0 - Hot Topics)
+## 💥 What's New (v2.2.0)
 
 <details>
-<summary><b>Click to expand what's new in v2.1.0! 🚀</b></summary>
+<summary><b>Click to expand what's new in v2.2.0! 🚀</b></summary>
 <br />
 
-The performance and stability update is here! We've dropped major architectural enhancements to make Levelo JS scale beautifully in production:
+The renderer rewrite is here. Levelo 2.2.0 replaces the direct DOM
+mounting path with a platform-neutral render tree and operation pipeline,
+setting up the native renderers for the next release.
 
-* **⚡ Optimized State Mutations via `batch()`**: Group multiple synchronized state updates seamlessly. Instead of triggering expensive incremental DOM rerenders for every individual mutation, the framework now queues changes and flushes them in a single cycle—drastically improving efficiency during high-frequency updates and loops.
-* **📝 Form Controls Fix (Dynamic Value Tracking)**: Fixed a structural bug in `dom.ts` where `<input>`, `<textarea>`, and `<select>` elements lost reactive synchronizations with state values. Forms are now fully safe and reactive.
-* **📦 Ecosystem Modularity**: `vite-plugin-levelojs` has been completely modularized into a standalone independent workspace package for better project scaffolding and clean build cycles.
+* **🌳 Renderer-backed `render()`**: The public `render()` API now builds
+  a `RenderTree` and drives it through a `PlatformAdapter`. Reactive
+  expressions bind to individual native nodes — no tree comparison, no
+  reconciliation.
+
+* **🧹 `unmount()` API**: Symmetric counterpart to `render()`. Tears down
+  the mounted tree, disposes reactive effects, and detaches native nodes.
+  Required for route swapping and any container reuse.
+
+* **🧭 Working router**: `Pages` and `Page` now mount through the renderer
+  pipeline. Route changes unmount the previous view before mounting the
+  next. Added `navigate(path)` for programmatic routing.
+
+* **📦 WASM bindings**: The native core (`native/levelo-core`) compiles to
+  WebAssembly and ships alongside the runtime in `dist/wasm/`. The bridge
+  loads on demand and stays out of the way when unused.
+
+* **📝 Form Controls Fix**: Reactive synchronization for `<input>`,
+  `<textarea>`, and `<select>` is now routed through the renderer's
+  `SetProperty` operation, so form state stays in sync with signals.
+
+* **🧪 Test coverage**: The reactivity and rendering core now has
+  automated tests. `state`, `effect`, `computed`, `batch`, `render`, and
+  `unmount` all have regression coverage.
 
 </details>
-
 ---
 
 ## Getting Started

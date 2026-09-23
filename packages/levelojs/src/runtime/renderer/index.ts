@@ -21,17 +21,6 @@ export type {
 } from "./operations/OperationExecutorRegistry.js";
 export * from "./tree/operations/index.js";
 
-// Commit
-export { CommitCoordinator } from "./commit/CommitCoordinator.js";
-
-// Pipeline
-export type { RenderPipeline } from "./pipeline/RenderPipeline.js";
-export { DefaultRenderPipeline } from "./pipeline/DefaultRenderPipeline.js";
-export type { PipelineStage } from "./pipeline/PipelineStage.js";
-export type { RenderPipelineContext } from "./pipeline/RenderPipelineContext.js";
-export { ValidationStage } from "./pipeline/ValidationStage.js";
-export { CommitStage } from "./pipeline/CommitStage.js";
-
 // Scheduling
 export type { Scheduler } from "./scheduler/Scheduler.js";
 export { ImmediateScheduler } from "./scheduler/ImmediateScheduler.js";
@@ -68,7 +57,12 @@ export { RendererContainer } from "./container/RendererContainer.js";
 export {
   RENDERER_TOKEN,
   PLATFORM_ADAPTER_TOKEN,
-  RENDER_PIPELINE_TOKEN,
   SCHEDULER_TOKEN,
-  COMMIT_COORDINATOR_TOKEN,
 } from "./container/RendererTokens.js";
+
+// The native renderer
+export * from "./native/index.js";
+
+// Native platform adapter
+export { NativeAdapter } from "./platforms/native/NativeAdapter.js";
+

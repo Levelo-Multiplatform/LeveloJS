@@ -29,8 +29,10 @@ export class RemoveChildExecutor
         operation.payload.childId,
       );
 
-    parent.removeChild(
-      child,
-    );
+    if (child.parentNode !== parent) {
+      return;
+    }
+
+    parent.removeChild(child);
   }
 }
