@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 
 use levelo_core::{
     operations::{Operation, OperationBatch},
+    patch::DomPatch,
     renderer::Renderer,
     tree::{Node, NodeId, NodeKind},
     value::Value,
@@ -11,8 +12,8 @@ use levelo_core::{
 /// WASM-facing wrapper around the shared Levelo renderer core.
 ///
 /// This wrapper contains no DOM or platform logic. It only translates
-/// JavaScript operations into the shared renderer representation, and
-/// exposes the resulting tree back to JavaScript for inspection.
+/// JavaScript operations into the shared renderer representation, applies
+/// them, and returns the resulting DOM patches.
 ///
 /// Node IDs are `u64` internally but cross the JS boundary as `f64`.
 /// JavaScript's `Number` type is `f64`, node IDs never exceed 2^53 in
@@ -35,8 +36,10 @@ impl WasmRenderer {
     /// Executes an ordered batch of native renderer operations.
     ///
     /// The batch is translated into the shared Rust operation model and
-    /// applied by the core renderer.
-    pub fn execute_batch(&mut self, operations: Array) -> Result<(), JsValue> {
+    /// applied by the core renderer. The return value is an array of
+    /// platform-neutral DOM patches describing what a platform adapter
+    /// should do to stay in sync with the new state.
+    pub fn execute_batch(&mut self, operations: Array) -> Result<Array, JsValue> {
         let mut batch = OperationBatch::with_capacity(operations.length() as usize);
 
         for operation in operations.iter() {
@@ -44,7 +47,16 @@ impl WasmRenderer {
             batch.push(operation);
         }
 
-        self.inner.apply_batch(&batch).map_err(core_error)
+        let patches = self.inner.apply_batch(&batch).map_err(core_error)?;
+
+        let array = Array::new();
+
+        for patch in &patches {
+            let value = dom_patch_to_js_value(patch)?;
+            array.push(&value);
+        }
+
+        Ok(array)
     }
 
     /// Creates an element node and returns its stable node ID.
@@ -52,7 +64,7 @@ impl WasmRenderer {
         let node = self.inner.allocate_node_id();
 
         self.inner
-            .apply_operation(&Operation::CreateElement { node, element_type })
+            .apply_operation_silent(&Operation::CreateElement { node, element_type })
             .map_err(core_error)?;
 
         Ok(node.get() as f64)
@@ -63,7 +75,7 @@ impl WasmRenderer {
         let node = self.inner.allocate_node_id();
 
         self.inner
-            .apply_operation(&Operation::CreateText { node, text })
+            .apply_operation_silent(&Operation::CreateText { node, text })
             .map_err(core_error)?;
 
         Ok(node.get() as f64)
@@ -72,7 +84,7 @@ impl WasmRenderer {
     /// Attaches an existing node to another node.
     pub fn append_child(&mut self, parent: f64, child: f64) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::AppendChild {
+            .apply_operation_silent(&Operation::AppendChild {
                 parent: NodeId::new(parent as u64),
                 child: NodeId::new(child as u64),
             })
@@ -82,7 +94,7 @@ impl WasmRenderer {
     /// Removes a child from its parent.
     pub fn remove_child(&mut self, parent: f64, child: f64) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::RemoveChild {
+            .apply_operation_silent(&Operation::RemoveChild {
                 parent: NodeId::new(parent as u64),
                 child: NodeId::new(child as u64),
             })
@@ -92,7 +104,7 @@ impl WasmRenderer {
     /// Deletes a node from the renderer bookkeeping store.
     pub fn delete_node(&mut self, node: f64) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::DeleteNode {
+            .apply_operation_silent(&Operation::DeleteNode {
                 node: NodeId::new(node as u64),
             })
             .map_err(core_error)
@@ -108,7 +120,7 @@ impl WasmRenderer {
         let value = js_value_to_core_value(value)?;
 
         self.inner
-            .apply_operation(&Operation::SetProperty {
+            .apply_operation_silent(&Operation::SetProperty {
                 node: NodeId::new(node as u64),
                 name,
                 value,
@@ -119,7 +131,7 @@ impl WasmRenderer {
     /// Removes a property from a node.
     pub fn remove_property(&mut self, node: f64, name: String) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::RemoveProperty {
+            .apply_operation_silent(&Operation::RemoveProperty {
                 node: NodeId::new(node as u64),
                 name,
             })
@@ -134,7 +146,7 @@ impl WasmRenderer {
         value: String,
     ) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::SetStyle {
+            .apply_operation_silent(&Operation::SetStyle {
                 node: NodeId::new(node as u64),
                 name,
                 value,
@@ -145,7 +157,7 @@ impl WasmRenderer {
     /// Removes a style value from a node.
     pub fn remove_style(&mut self, node: f64, name: String) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::RemoveStyle {
+            .apply_operation_silent(&Operation::RemoveStyle {
                 node: NodeId::new(node as u64),
                 name,
             })
@@ -155,7 +167,7 @@ impl WasmRenderer {
     /// Sets the text value of a node.
     pub fn set_text(&mut self, node: f64, text: String) -> Result<(), JsValue> {
         self.inner
-            .apply_operation(&Operation::SetText {
+            .apply_operation_silent(&Operation::SetText {
                 node: NodeId::new(node as u64),
                 text,
             })
@@ -276,7 +288,7 @@ fn node_to_js_value(node: &Node) -> Result<JsValue, JsValue> {
     )?;
 
     let kind = match node.kind() {
-        NodeKind::Element => "element",
+        NodeKind::Element { .. } => "element",
         NodeKind::Text => "text",
     };
 
@@ -313,6 +325,114 @@ fn node_to_js_value(node: &Node) -> Result<JsValue, JsValue> {
         None => JsValue::NULL,
     };
     Reflect::set(&object, &JsValue::from_str("text"), &text)?;
+
+    Ok(object.into())
+}
+
+/// Serializes a `DomPatch` into a JS object with a `type` discriminator.
+///
+/// The returned object shape matches the `DomPatch` TypeScript union the
+/// JavaScript adapter consumes.
+fn dom_patch_to_js_value(patch: &DomPatch) -> Result<JsValue, JsValue> {
+    let object = Object::new();
+
+    let set = |key: &str, value: &JsValue| -> Result<(), JsValue> {
+        Reflect::set(&object, &JsValue::from_str(key), value).map(|_| ())
+    };
+
+    let set_node = |key: &str, id: NodeId| -> Result<(), JsValue> {
+        Reflect::set(
+            &object,
+            &JsValue::from_str(key),
+            &JsValue::from_f64(id.get() as f64),
+        )
+        .map(|_| ())
+    };
+
+    match patch {
+        DomPatch::CreateElement { node, tag } => {
+            set("type", &JsValue::from_str("CreateElement"))?;
+            set_node("node", *node)?;
+            set("tag", &JsValue::from_str(tag))?;
+        }
+
+        DomPatch::CreateText { node, text } => {
+            set("type", &JsValue::from_str("CreateText"))?;
+            set_node("node", *node)?;
+            set("text", &JsValue::from_str(text))?;
+        }
+
+        DomPatch::SetProperty { node, name, value } => {
+            set("type", &JsValue::from_str("SetProperty"))?;
+            set_node("node", *node)?;
+            set("name", &JsValue::from_str(name))?;
+            set("value", &core_value_to_js_value(value)?)?;
+        }
+
+        DomPatch::RemoveProperty { node, name } => {
+            set("type", &JsValue::from_str("RemoveProperty"))?;
+            set_node("node", *node)?;
+            set("name", &JsValue::from_str(name))?;
+        }
+
+        DomPatch::SetStyle { node, name, value } => {
+            set("type", &JsValue::from_str("SetStyle"))?;
+            set_node("node", *node)?;
+            set("name", &JsValue::from_str(name))?;
+            set("value", &JsValue::from_str(value))?;
+        }
+
+        DomPatch::RemoveStyle { node, name } => {
+            set("type", &JsValue::from_str("RemoveStyle"))?;
+            set_node("node", *node)?;
+            set("name", &JsValue::from_str(name))?;
+        }
+
+        DomPatch::SetText { node, text } => {
+            set("type", &JsValue::from_str("SetText"))?;
+            set_node("node", *node)?;
+            set("text", &JsValue::from_str(text))?;
+        }
+
+        DomPatch::AppendChild { parent, child } => {
+            set("type", &JsValue::from_str("AppendChild"))?;
+            set_node("parent", *parent)?;
+            set_node("child", *child)?;
+        }
+
+        DomPatch::InsertBefore {
+            parent,
+            child,
+            reference,
+        } => {
+            set("type", &JsValue::from_str("InsertBefore"))?;
+            set_node("parent", *parent)?;
+            set_node("child", *child)?;
+            set_node("reference", *reference)?;
+        }
+
+        DomPatch::RemoveChild { parent, child } => {
+            set("type", &JsValue::from_str("RemoveChild"))?;
+            set_node("parent", *parent)?;
+            set_node("child", *child)?;
+        }
+
+        DomPatch::ReplaceChild {
+            parent,
+            new_child,
+            old_child,
+        } => {
+            set("type", &JsValue::from_str("ReplaceChild"))?;
+            set_node("parent", *parent)?;
+            set_node("newChild", *new_child)?;
+            set_node("oldChild", *old_child)?;
+        }
+
+        DomPatch::DeleteNode { node } => {
+            set("type", &JsValue::from_str("DeleteNode"))?;
+            set_node("node", *node)?;
+        }
+    }
 
     Ok(object.into())
 }

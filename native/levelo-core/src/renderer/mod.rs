@@ -235,6 +235,21 @@ impl Renderer {
         Ok(())
     }
 
+    /// Applies one targeted operation without collecting patches.
+    ///
+    /// Used by callers that only need the renderer state updated and do
+    /// not care about the DOM patches the operation would produce. The
+    /// imperative `WasmRenderer` methods (`create_element`, `append_child`,
+    /// etc.) use this path. New code should prefer `apply_operation` so the
+    /// patches are available.
+    pub fn apply_operation_silent(
+        &mut self,
+        operation: &Operation,
+    ) -> Result<(), CoreError> {
+        let mut patches = Vec::new();
+        self.apply_operation(operation, &mut patches)
+    }
+
     /// Applies an ordered batch of targeted operations and returns the
     /// patches a platform adapter should apply, in order.
     pub fn apply_batch(
@@ -535,5 +550,19 @@ mod tests {
         let patches = renderer.apply_batch(&batch).unwrap();
 
         assert!(patches.is_empty());
+    }
+
+    #[test]
+    fn silent_apply_discards_patches() {
+        let mut renderer = Renderer::new();
+
+        renderer
+            .apply_operation_silent(&Operation::CreateElement {
+                node: NodeId::new(1),
+                element_type: "div".into(),
+            })
+            .unwrap();
+
+        assert_eq!(renderer.node_count(), 1);
     }
 }
