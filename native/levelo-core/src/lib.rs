@@ -9,6 +9,7 @@
 
 pub mod error;
 pub mod operations;
+pub mod patch;
 pub mod renderer;
 pub mod scheduler;
 pub mod tree;

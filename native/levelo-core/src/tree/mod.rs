@@ -29,9 +29,14 @@ impl std::fmt::Display for NodeId {
 }
 
 /// Platform-neutral node category.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeKind {
-    Element,
+    /// A native element. The tag is the platform-agnostic element name
+    /// (`div`, `span`, `input`, etc.). It is passed through to the platform
+    /// adapter unchanged.
+    Element { tag: String },
+
+    /// A native text node.
     Text,
 }
 
@@ -69,7 +74,7 @@ impl Node {
     }
 
     pub fn kind(&self) -> NodeKind {
-        self.kind
+        self.kind.clone()
     }
 
     pub fn parent(&self) -> Option<NodeId> {
@@ -110,6 +115,14 @@ impl Node {
 
     pub fn set_text(&mut self, text: String) {
         self.text = Some(text);
+    }
+
+    /// Returns the tag of an element node, or `None` for text nodes.
+    pub fn element_tag(&self) -> Option<&str> {
+        match &self.kind {
+            NodeKind::Element { tag } => Some(tag),
+            NodeKind::Text => None,
+        }
     }
 }
 
@@ -437,12 +450,23 @@ impl NodeStore {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn element(id: u64) -> Node {
-        Node::new(NodeId::new(id), NodeKind::Element)
+        Node::new(
+            NodeId::new(id),
+            NodeKind::Element { tag: "div".into() },
+        )
+    }
+
+    fn element_with_tag(id: u64, tag: &str) -> Node {
+        Node::new(
+            NodeId::new(id),
+            NodeKind::Element { tag: tag.into() },
+        )
     }
 
     fn text(id: u64) -> Node {
@@ -594,5 +618,19 @@ mod tests {
 
         assert!(store.get(parent).unwrap().children().is_empty());
         assert!(!store.contains(child));
+    }
+
+    #[test]
+    fn exposes_element_tag() {
+        let node = element_with_tag(1, "button");
+
+        assert_eq!(node.element_tag(), Some("button"));
+    }
+
+    #[test]
+    fn text_nodes_have_no_tag() {
+        let node = text(1);
+
+        assert_eq!(node.element_tag(), None);
     }
 }

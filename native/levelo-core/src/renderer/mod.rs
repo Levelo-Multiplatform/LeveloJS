@@ -7,6 +7,7 @@
 use crate::{
     error::CoreError,
     operations::{Operation, OperationBatch},
+    patch::DomPatch,
     tree::{Node, NodeId, NodeKind, NodeStore},
 };
 
@@ -59,17 +60,30 @@ impl Renderer {
         self.nodes.get(id)
     }
 
-    /// Applies one targeted operation to shared renderer state.
+    /// Applies one targeted operation to shared renderer state and emits the
+    /// patches a platform adapter should apply.
     ///
-    /// The renderer never performs platform work directly. It only updates
-    /// state that is meaningful across supported platforms.
-    pub fn apply_operation(&mut self, operation: &Operation) -> Result<(), CoreError> {
+    /// The renderer never performs platform work directly. It updates state
+    /// that is meaningful across supported platforms and records what a
+    /// platform must do to stay in sync.
+    pub fn apply_operation(
+        &mut self,
+        operation: &Operation,
+        patches: &mut Vec<DomPatch>,
+    ) -> Result<(), CoreError> {
         match operation {
-            Operation::CreateElement {
-                node,
-                element_type: _,
-            } => {
-                self.register_external_node(*node, NodeKind::Element)?;
+            Operation::CreateElement { node, element_type } => {
+                self.register_external_node(
+                    *node,
+                    NodeKind::Element {
+                        tag: element_type.clone(),
+                    },
+                )?;
+
+                patches.push(DomPatch::CreateElement {
+                    node: *node,
+                    tag: element_type.clone(),
+                });
             }
 
             Operation::CreateText { node, text } => {
@@ -81,10 +95,20 @@ impl Renderer {
                     .ok_or_else(|| CoreError::UnknownNode(node.get()))?;
 
                 target.set_text(text.clone());
+
+                patches.push(DomPatch::CreateText {
+                    node: *node,
+                    text: text.clone(),
+                });
             }
 
             Operation::AppendChild { parent, child } => {
                 self.nodes.attach_child(*parent, *child)?;
+
+                patches.push(DomPatch::AppendChild {
+                    parent: *parent,
+                    child: *child,
+                });
             }
 
             Operation::InsertBefore {
@@ -93,6 +117,12 @@ impl Renderer {
                 reference,
             } => {
                 self.nodes.insert_before(*parent, *child, *reference)?;
+
+                patches.push(DomPatch::InsertBefore {
+                    parent: *parent,
+                    child: *child,
+                    reference: *reference,
+                });
             }
 
             Operation::ReplaceChild {
@@ -101,14 +131,27 @@ impl Renderer {
                 old_child,
             } => {
                 self.nodes.replace_child(*parent, *new_child, *old_child)?;
+
+                patches.push(DomPatch::ReplaceChild {
+                    parent: *parent,
+                    new_child: *new_child,
+                    old_child: *old_child,
+                });
             }
 
             Operation::RemoveChild { parent, child } => {
                 self.nodes.detach_child(*parent, *child)?;
+
+                patches.push(DomPatch::RemoveChild {
+                    parent: *parent,
+                    child: *child,
+                });
             }
 
             Operation::DeleteNode { node } => {
                 self.delete_node(*node)?;
+
+                patches.push(DomPatch::DeleteNode { node: *node });
             }
 
             Operation::SetProperty { node, name, value } => {
@@ -118,6 +161,12 @@ impl Renderer {
                     .ok_or_else(|| CoreError::UnknownNode(node.get()))?;
 
                 target.set_property(name.clone(), value.clone());
+
+                patches.push(DomPatch::SetProperty {
+                    node: *node,
+                    name: name.clone(),
+                    value: value.clone(),
+                });
             }
 
             Operation::RemoveProperty { node, name } => {
@@ -127,6 +176,11 @@ impl Renderer {
                     .ok_or_else(|| CoreError::UnknownNode(node.get()))?;
 
                 target.remove_property(name);
+
+                patches.push(DomPatch::RemoveProperty {
+                    node: *node,
+                    name: name.clone(),
+                });
             }
 
             Operation::SetStyle { node, name, value } => {
@@ -136,6 +190,12 @@ impl Renderer {
                     .ok_or_else(|| CoreError::UnknownNode(node.get()))?;
 
                 target.set_style(name.clone(), value.clone());
+
+                patches.push(DomPatch::SetStyle {
+                    node: *node,
+                    name: name.clone(),
+                    value: value.clone(),
+                });
             }
 
             Operation::RemoveStyle { node, name } => {
@@ -145,6 +205,11 @@ impl Renderer {
                     .ok_or_else(|| CoreError::UnknownNode(node.get()))?;
 
                 target.remove_style(name);
+
+                patches.push(DomPatch::RemoveStyle {
+                    node: *node,
+                    name: name.clone(),
+                });
             }
 
             Operation::SetText { node, text } => {
@@ -154,28 +219,43 @@ impl Renderer {
                     .ok_or_else(|| CoreError::UnknownNode(node.get()))?;
 
                 target.set_text(text.clone());
+
+                patches.push(DomPatch::SetText {
+                    node: *node,
+                    text: text.clone(),
+                });
             }
 
             Operation::AddEventListener { .. } | Operation::RemoveEventListener { .. } => {
                 // Event handlers remain platform-runtime state.
+                // No DOM patch is emitted.
             }
         }
 
         Ok(())
     }
 
-    /// Applies an ordered batch of targeted operations.
-    pub fn apply_batch(&mut self, batch: &OperationBatch) -> Result<(), CoreError> {
+    /// Applies an ordered batch of targeted operations and returns the
+    /// patches a platform adapter should apply, in order.
+    pub fn apply_batch(
+        &mut self,
+        batch: &OperationBatch,
+    ) -> Result<Vec<DomPatch>, CoreError> {
+        let mut patches = Vec::with_capacity(batch.len());
+
         for operation in batch.iter() {
-            self.apply_operation(operation)?;
+            self.apply_operation(operation, &mut patches)?;
         }
 
-        Ok(())
+        Ok(patches)
     }
 
-    /// Executes a batch on the platform and then commits it to shared state
-    /// Platform execution is the commit boundary. Shared renderer state is only
-    /// updated after the platform accepts the complete batch.
+    /// Executes a batch on the platform and then commits it to shared state.
+    ///
+    /// Platform execution is the commit boundary. Shared renderer state is
+    /// only updated after the platform accepts the complete batch. The
+    /// patches returned by `apply_batch` are discarded because the executor
+    /// has already applied them.
     pub fn commit<E>(
         &mut self,
         batch: &OperationBatch,
@@ -242,12 +322,13 @@ pub enum CommitError<E> {
     Platform(E),
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::operations::{Operation, OperationBatch};
+    use crate::patch::DomPatch;
     use crate::tree::NodeId;
+    use crate::value::Value;
 
     #[derive(Debug)]
     struct TestExecutor {
@@ -308,5 +389,151 @@ mod tests {
 
         assert!(matches!(error, CommitError::Platform("platform execution failed")));
         assert_eq!(renderer.node_count(), 0);
+    }
+
+    #[test]
+    fn create_element_emits_patch_with_tag() {
+        let mut renderer = Renderer::new();
+
+        let mut batch = OperationBatch::new();
+        batch.push(Operation::CreateElement {
+            node: NodeId::new(1),
+            element_type: "section".into(),
+        });
+
+        let patches = renderer.apply_batch(&batch).unwrap();
+
+        assert_eq!(patches.len(), 1);
+        assert_eq!(
+            patches[0],
+            DomPatch::CreateElement {
+                node: NodeId::new(1),
+                tag: "section".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn create_text_emits_patch_with_text() {
+        let mut renderer = Renderer::new();
+
+        let mut batch = OperationBatch::new();
+        batch.push(Operation::CreateText {
+            node: NodeId::new(1),
+            text: "hello".into(),
+        });
+
+        let patches = renderer.apply_batch(&batch).unwrap();
+
+        assert_eq!(patches.len(), 1);
+        assert_eq!(
+            patches[0],
+            DomPatch::CreateText {
+                node: NodeId::new(1),
+                text: "hello".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn append_child_emits_patch() {
+        let mut renderer = Renderer::new();
+
+        let mut setup = OperationBatch::new();
+        setup.push(Operation::CreateElement {
+            node: NodeId::new(1),
+            element_type: "div".into(),
+        });
+        setup.push(Operation::CreateText {
+            node: NodeId::new(2),
+            text: "hi".into(),
+        });
+        renderer.apply_batch(&setup).unwrap();
+
+        let mut batch = OperationBatch::new();
+        batch.push(Operation::AppendChild {
+            parent: NodeId::new(1),
+            child: NodeId::new(2),
+        });
+
+        let patches = renderer.apply_batch(&batch).unwrap();
+
+        assert_eq!(patches.len(), 1);
+        assert_eq!(
+            patches[0],
+            DomPatch::AppendChild {
+                parent: NodeId::new(1),
+                child: NodeId::new(2),
+            }
+        );
+    }
+
+    #[test]
+    fn set_property_emits_patch() {
+        let mut renderer = Renderer::new();
+
+        let mut setup = OperationBatch::new();
+        setup.push(Operation::CreateElement {
+            node: NodeId::new(1),
+            element_type: "input".into(),
+        });
+        renderer.apply_batch(&setup).unwrap();
+
+        let mut batch = OperationBatch::new();
+        batch.push(Operation::SetProperty {
+            node: NodeId::new(1),
+            name: "disabled".into(),
+            value: Value::Bool(true),
+        });
+
+        let patches = renderer.apply_batch(&batch).unwrap();
+
+        assert_eq!(patches.len(), 1);
+        assert_eq!(
+            patches[0],
+            DomPatch::SetProperty {
+                node: NodeId::new(1),
+                name: "disabled".into(),
+                value: Value::Bool(true),
+            }
+        );
+    }
+
+    #[test]
+    fn delete_node_emits_patch() {
+        let mut renderer = Renderer::new();
+
+        let mut setup = OperationBatch::new();
+        setup.push(Operation::CreateElement {
+            node: NodeId::new(1),
+            element_type: "div".into(),
+        });
+        renderer.apply_batch(&setup).unwrap();
+
+        let mut batch = OperationBatch::new();
+        batch.push(Operation::DeleteNode {
+            node: NodeId::new(1),
+        });
+
+        let patches = renderer.apply_batch(&batch).unwrap();
+
+        assert_eq!(patches.len(), 1);
+        assert_eq!(patches[0], DomPatch::DeleteNode { node: NodeId::new(1) });
+    }
+
+    #[test]
+    fn event_operations_emit_no_patches() {
+        let mut renderer = Renderer::new();
+
+        let mut batch = OperationBatch::new();
+        batch.push(Operation::AddEventListener {
+            node: NodeId::new(1),
+            event: "click".into(),
+            listener_id: 1,
+        });
+
+        let patches = renderer.apply_batch(&batch).unwrap();
+
+        assert!(patches.is_empty());
     }
 }
