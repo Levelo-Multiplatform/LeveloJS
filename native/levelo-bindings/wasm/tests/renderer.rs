@@ -83,8 +83,8 @@ fn wasm_renderer_creates_and_deletes_nodes() {
     let element = renderer.create_element("div".to_owned()).unwrap();
     let text = renderer.create_text("Hello".to_owned()).unwrap();
 
-    assert_eq!(element, 1);
-    assert_eq!(text, 2);
+    assert_eq!(element, 1.0);
+    assert_eq!(text, 2.0);
     assert_eq!(renderer.node_count(), 2);
 
     renderer.append_child(element, text).unwrap();
@@ -271,7 +271,7 @@ fn wasm_renderer_preserves_batch_order() {
     assert_eq!(renderer.node_count(), 2);
 }
 
-// ---- New in Step 1: query and serialize methods ----
+// ---- Query and serialize methods ----
 
 #[wasm_bindgen_test]
 fn wasm_renderer_get_node_returns_full_snapshot() {
@@ -304,7 +304,7 @@ fn wasm_renderer_get_node_returns_full_snapshot() {
 
     renderer.execute_batch(batch).unwrap();
 
-    let snapshot = renderer.get_node(1).unwrap();
+    let snapshot = renderer.get_node(1.0).unwrap();
 
     let id = Reflect::get(&snapshot, &JsValue::from_str("id")).unwrap();
     assert_eq!(id.as_f64(), Some(1.0));
@@ -328,7 +328,7 @@ fn wasm_renderer_get_node_returns_full_snapshot() {
 fn wasm_renderer_get_node_rejects_unknown_id() {
     let renderer = WasmRenderer::new();
 
-    let result = renderer.get_node(999);
+    let result = renderer.get_node(999.0);
 
     assert!(result.is_err());
 }
@@ -367,7 +367,7 @@ fn wasm_renderer_get_children_returns_ids_in_order() {
 
     renderer.execute_batch(batch).unwrap();
 
-    let children = renderer.get_children(1).unwrap();
+    let children = renderer.get_children(1.0).unwrap();
 
     assert_eq!(children.length(), 2);
     assert_eq!(children.get(0).as_f64(), Some(2.0));
@@ -378,7 +378,7 @@ fn wasm_renderer_get_children_returns_ids_in_order() {
 fn wasm_renderer_root_returns_first_parentless_node() {
     let mut renderer = WasmRenderer::new();
 
-    assert_eq!(renderer.root(), 0);
+    assert_eq!(renderer.root(), 0.0);
 
     let batch = Array::new();
 
@@ -390,7 +390,7 @@ fn wasm_renderer_root_returns_first_parentless_node() {
 
     renderer.execute_batch(batch).unwrap();
 
-    assert_eq!(renderer.root(), 5);
+    assert_eq!(renderer.root(), 5.0);
 }
 
 #[wasm_bindgen_test]
