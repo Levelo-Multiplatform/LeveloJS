@@ -1,5 +1,6 @@
 import type { NativeOperation } from "./NativeOperationBridge.js";
 import type { NativeRendererBridge } from "./NativeRendererBridge.js";
+import type { DomPatch } from "../platforms/web/DomPatch.js";
 
 /**
  * Shape of the wasm-bindgen generated module.
@@ -21,27 +22,40 @@ interface WasmModule {
  * Handle to the WASM-side renderer instance.
  */
 interface WasmRendererHandle {
-  execute_batch(operations: unknown[]): void;
+  execute_batch(operations: unknown[]): DomPatch[];
   node_count(): number;
   free(): void;
 }
 
 /**
- * Loads the optional WASM module.
+ * Loads the WASM module.
  *
- * The module is resolved through a dynamic import so:
+ * The import specifier is preserved as an opaque string so bundlers do not
+ * statically resolve it. Resolution is done at runtime relative to this
+ * file's location.
  *
- *   - bundlers do not statically inline the WASM package;
- *   - the CJS build does not trip over `import.meta.url` inside
- *     the wasm-bindgen glue code;
- *   - consumers who never use the native renderer never pay for
- *     the WASM package.
- *
- * The path is intentionally a build-time constant. Replace it with
- * `@levelo/wasm` once that package is published.
+ * In a bundler context, the bundler resolves the specifier during its own
+ * resolution pass (the `@vite-ignore` comment prevents it from being
+ * inlined). In a Node context (Vitest), `new Function("import")` bypasses
+ * Vite's static analysis so the specifier reaches Node's ESM loader as-is.
  */
 const WASM_MODULE_ID =
   "../../../../../../native/levelo-bindings/wasm/pkg/levelo_wasm.js";
+
+/**
+ * Opaque dynamic import.
+ *
+ * `new Function` prevents esbuild, Rollup, Vite, and Webpack from
+ * statically analyzing the import target.
+ */
+function runtimeImport<T>(specifier: string): Promise<T> {
+  const dynamicImport = new Function(
+    "specifier",
+    "return import(specifier)",
+  ) as (specifier: string) => Promise<T>;
+
+  return dynamicImport(specifier);
+}
 
 type WasmInitInput = unknown;
 
@@ -57,11 +71,7 @@ export class LeveloWasmBridge implements NativeRendererBridge {
     let module: WasmModule;
 
     try {
-      module = (await import(
-        /* @vite-ignore */
-        /* webpackIgnore: true */
-        WASM_MODULE_ID
-      )) as WasmModule;
+      module = await runtimeImport<WasmModule>(WASM_MODULE_ID);
     } catch (error) {
       throw new Error(
         "[Levelo] The native renderer requires the `levelo-wasm` module. " +
@@ -86,14 +96,14 @@ export class LeveloWasmBridge implements NativeRendererBridge {
     this.initialized = true;
   }
 
-  execute(operations: readonly NativeOperation[]): void {
+  execute(operations: readonly NativeOperation[]): DomPatch[] {
     if (!this.renderer) {
       throw new Error(
         "LeveloWasmBridge must be initialized before execution.",
       );
     }
 
-    this.renderer.execute_batch([...operations]);
+    return this.renderer.execute_batch([...operations]);
   }
 
   dispose(): void {

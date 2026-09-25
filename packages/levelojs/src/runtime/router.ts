@@ -5,21 +5,11 @@ import { applyHeadUpdates } from "./head.js";
 import { getClean404Component } from "./templates/error404.js";
 import { InternalRenderNode } from "./renderer/tree/InternalRenderNode.js";
 
-/**
- * Mapping of normalized path -> component factory.
- */
 type RouteComponent = () => InternalRenderNode;
 
 const routes = new Map<string, RouteComponent>();
-
-/**
- * Subscribers notified when the browser path changes.
- */
 const routeListeners = new Set<(path: string) => void>();
 
-/**
- * Public navigation entry point. Any internal link click routes through here.
- */
 export function navigate(path: string): void {
   if (typeof window === "undefined") return;
   if (window.location.pathname === path) return;
@@ -77,9 +67,6 @@ export interface PageProps {
   component: RouteComponent;
 }
 
-/**
- * Route declaration. Consumed by `<Pages>` at mount time.
- */
 export function Page(props: PageProps): Record<string, unknown> {
   return {
     type: "PAGE_CONFIG",
@@ -92,10 +79,6 @@ export interface PagesProps {
   children?: unknown | unknown[];
 }
 
-/**
- * Viewport container that swaps its mounted component when the browser
- * location changes.
- */
 export function Pages(props: PagesProps): HTMLElement {
   const container = document.createElement("div");
   container.className = "levelo-viewport-wrapper";
@@ -119,8 +102,6 @@ export function Pages(props: PagesProps): HTMLElement {
   }
 
   const renderActiveRoute = (currentPath: string): void => {
-    // The Pages element may have been detached from the DOM by a parent
-    // unmount. In that case, stop listening rather than leak.
     if (!container.isConnected) {
       routeListeners.delete(renderActiveRoute);
       return;
@@ -143,7 +124,6 @@ export function Pages(props: PagesProps): HTMLElement {
 
   routeListeners.add(renderActiveRoute);
 
-  // Render once synchronously so the initial route is visible immediately.
   renderActiveRoute(window.location.pathname);
 
   return container;

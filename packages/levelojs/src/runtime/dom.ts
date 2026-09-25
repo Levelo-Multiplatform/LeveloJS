@@ -3,8 +3,9 @@ import { InternalRenderNode } from "./renderer/tree/InternalRenderNode.js";
 import { RenderTree } from "./renderer/tree/RenderTree.js";
 import { DefaultRenderer } from "./renderer/DefaultRenderer.js";
 import { NativeNodeRegistry } from "./renderer/platforms/web/NativeNodeRegistry.js";
-import { WebOperationRegistry } from "./renderer/platforms/web/WebOperationRegistry.js";
 import { WebAdapter } from "./renderer/platforms/web/WebAdapter.js";
+import { LeveloWasmBridge } from "./renderer/native/LeveloWasmBridge.js";
+import type { NativeRendererBridge } from "./renderer/native/NativeRendererBridge.js";
 import {
   type Owner,
   setOwner,
@@ -12,6 +13,22 @@ import {
 } from "./reactivity/owner.js";
 
 export type RenderInput = InternalRenderNode | (() => InternalRenderNode);
+
+export type BridgeFactory = () => Promise<NativeRendererBridge>;
+
+let bridgeFactory: BridgeFactory = async () => {
+  const bridge = new LeveloWasmBridge();
+  await bridge.initialize();
+  return bridge;
+};
+
+export function setBridgeFactory(factory: BridgeFactory | null): void {
+  bridgeFactory = factory ?? (async () => {
+    const bridge = new LeveloWasmBridge();
+    await bridge.initialize();
+    return bridge;
+  });
+}
 
 interface MountedRenderer {
   renderer: DefaultRenderer;
@@ -25,34 +42,35 @@ interface MountedRenderer {
 
 const mounted = new WeakMap<HTMLElement, MountedRenderer>();
 
-function createRenderer(container: HTMLElement): MountedRenderer {
-  const registry = new NativeNodeRegistry();
-  const operations = new WebOperationRegistry(registry);
-  const adapter = new WebAdapter(operations, registry);
-
-  const instance: MountedRenderer = {
-    renderer: new DefaultRenderer(adapter),
-    adapter,
-    registry,
-    container,
-    mountedRoot: null,
-    tree: null,
-    owner: null,
-  };
-
-  mounted.set(container, instance);
-  return instance;
+/**
+ * A materialized render input: the concrete root node plus the ownership
+ * scope that was active while the component executed.
+ */
+interface BuiltRoot {
+  root: InternalRenderNode;
+  owner: Owner;
 }
 
-function renderOnce(input: RenderInput, instance: MountedRenderer): void {
-  beginBuild();
+interface PendingRenderer {
+  bridgePromise: Promise<NativeRendererBridge>;
+  pendingRoots: BuiltRoot[];
+}
 
+const pending = new WeakMap<HTMLElement, PendingRenderer>();
+
+/**
+ * Materializes the render input into a concrete `InternalRenderNode` inside
+ * an ownership scope.
+ *
+ * Runs the component function exactly once and captures everything it
+ * registered via `cleanup()` or `computed()`. Errors from invalid input
+ * throw synchronously so the caller sees them immediately.
+ */
+function buildRoot(input: RenderInput): BuiltRoot {
   const owner: Owner = { cleanups: [] };
   const previousOwner = setOwner(owner);
 
   try {
-    // Components execute once. Reactive JSX expressions are represented by
-    // bindings and do not cause the component function to run again.
     const root = typeof input === "function" ? input() : input;
 
     if (!(root instanceof InternalRenderNode)) {
@@ -61,16 +79,25 @@ function renderOnce(input: RenderInput, instance: MountedRenderer): void {
       );
     }
 
-    const tree = new RenderTree(root);
-    instance.renderer.render(tree);
-    instance.tree = tree;
-    instance.owner = owner;
-
-    const nativeRoot = instance.registry.resolve<Node>(root.id);
-    instance.adapter.mount(instance.container, root.id);
-    instance.mountedRoot = nativeRoot;
+    return { root, owner };
   } finally {
     setOwner(previousOwner);
+  }
+}
+
+function renderOnce(built: BuiltRoot, instance: MountedRenderer): void {
+  beginBuild();
+
+  try {
+    const tree = new RenderTree(built.root);
+    instance.renderer.render(tree);
+    instance.tree = tree;
+    instance.owner = built.owner;
+
+    const nativeRoot = instance.registry.resolve<Node>(built.root.id);
+    instance.adapter.mount(instance.container, built.root.id);
+    instance.mountedRoot = nativeRoot;
+  } finally {
     endBuild();
   }
 }
@@ -78,8 +105,13 @@ function renderOnce(input: RenderInput, instance: MountedRenderer): void {
 /**
  * Mounts a Levelo component or element into a DOM container.
  *
- * A container can only host one mounted tree at a time. Call `unmount()`
- * before rendering into a container that is already in use.
+ * The first call for a container begins loading the native bridge
+ * asynchronously. If the bridge is not yet ready, the built root is queued
+ * and mounted once loading completes. Subsequent calls require the bridge
+ * to be ready and mount synchronously.
+ *
+ * Throws synchronously if the container is null, already mounted, or the
+ * input is not a Levelo element or component function.
  */
 export function render(
   input: RenderInput,
@@ -89,26 +121,75 @@ export function render(
     throw new Error("[Levelo] render() requires a valid DOM container.");
   }
 
-  let instance = mounted.get(container);
-  if (!instance) instance = createRenderer(container);
+  // Materialize and validate the input synchronously, inside an ownership
+  // scope so any `cleanup()` or `computed()` calls made during component
+  // execution register with the correct owner.
+  const built = buildRoot(input);
 
-  if (instance.tree) {
-    throw new Error(
-      "[Levelo] This container is already mounted. Call unmount() before rendering again.",
-    );
+  const existing = mounted.get(container);
+
+  if (existing) {
+    if (existing.tree) {
+      throw new Error(
+        "[Levelo] This container is already mounted. Call unmount() before rendering again.",
+      );
+    }
+
+    renderOnce(built, existing);
+    return;
   }
 
-  renderOnce(input, instance);
+  const inFlight = pending.get(container);
+
+  if (inFlight) {
+    inFlight.pendingRoots.push(built);
+    return;
+  }
+
+  const entry: PendingRenderer = {
+    bridgePromise: bridgeFactory(),
+    pendingRoots: [built],
+  };
+
+  pending.set(container, entry);
+
+  entry.bridgePromise
+    .then((bridge) => {
+      pending.delete(container);
+
+      const registry = new NativeNodeRegistry();
+      const adapter = new WebAdapter(bridge, registry);
+
+      const instance: MountedRenderer = {
+        renderer: new DefaultRenderer(adapter),
+        adapter,
+        registry,
+        container,
+        mountedRoot: null,
+        tree: null,
+        owner: null,
+      };
+
+      mounted.set(container, instance);
+
+      const first = entry.pendingRoots[0];
+
+      if (first !== undefined) {
+        renderOnce(first, instance);
+      }
+    })
+    .catch((error) => {
+      pending.delete(container);
+
+      console.error(
+        "[Levelo] Failed to initialize the native renderer bridge.",
+        error,
+      );
+
+      throw error;
+    });
 }
 
-/**
- * Unmounts the tree currently mounted in a container.
- *
- * Disposes reactive bindings, detaches the native root, and clears the
- * renderer state so the container can be reused.
- *
- * This is a no-op when the container is not mounted.
- */
 export function unmount(container: HTMLElement | null): void {
   if (!container) return;
 

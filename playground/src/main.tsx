@@ -11,7 +11,7 @@ if (!root) {
 
 const isRouterDemo = window.location.pathname.startsWith("/router");
 
-render(isRouterDemo ? RouterDemo : App, root);
+ render(isRouterDemo ? RouterDemo : App, root);
 
 console.log(
   isRouterDemo
