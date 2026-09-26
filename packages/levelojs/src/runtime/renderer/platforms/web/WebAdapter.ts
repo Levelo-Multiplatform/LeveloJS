@@ -22,15 +22,39 @@ export class WebAdapter implements PlatformAdapter<HTMLElement> {
     // operations. Namespaces are a DOM concern, so the core never sees
     // them; the adapter keeps them in scope for the duration of this batch.
     const namespaces = collectNamespaces(batch);
+  
+    const { native, events } = splitEventOperations(batch);
+  
+    // Structural, property, style, and text operations go through
+    // the native renderer.
+    if (native.length > 0) {
+      const nativeBatch = new OperationBatch(native);
+      const nativeOperations = translateOperationBatch(nativeBatch);
+      const patches = this.bridge.execute(nativeOperations);
+  
+      for (const patch of patches) {
+        this.applyPatch(patch, namespaces);
+      }
+    }
 
-    // Translate the operation batch to platform-neutral native operations.
-    // The bridge sends these to Rust and returns the patches the core
-    // computed.
-    const nativeOperations = translateOperationBatch(batch);
-    const patches = this.bridge.execute(nativeOperations);
-
-    for (const patch of patches) {
-      this.applyPatch(patch, namespaces);
+    // Event listeners are JavaScript platform concerns and must stay
+    // outside the native renderer.
+    for (const operation of events) {
+      console.log("[Levelo] event operation:", operation);
+      
+      const element = this.nodes.resolve<Node>(operation.target);
+  
+      if (operation.type === OperationType.AddEventListener) {
+        element.addEventListener(
+          operation.payload.event,
+          operation.payload.handler,
+        );
+      } else if (operation.type === OperationType.RemoveEventListener) {
+        element.removeEventListener(
+          operation.payload.event,
+          operation.payload.handler,
+        );
+      }
     }
   }
 
@@ -312,6 +336,29 @@ function collectNamespaces(
   }
 
   return namespaces;
+}
+
+function splitEventOperations(
+  batch: OperationBatch,
+): {
+  native: RenderOperation[];
+  events: RenderOperation[];
+} {
+  const native: RenderOperation[] = [];
+  const events: RenderOperation[] = [];
+
+  for (const operation of batch as Iterable<RenderOperation>) {
+    if (
+      operation.type === OperationType.AddEventListener ||
+      operation.type === OperationType.RemoveEventListener
+    ) {
+      events.push(operation);
+    } else {
+      native.push(operation);
+    }
+  }
+
+  return { native, events };
 }
 
 function normalizeStyleProperty(property: string): string {

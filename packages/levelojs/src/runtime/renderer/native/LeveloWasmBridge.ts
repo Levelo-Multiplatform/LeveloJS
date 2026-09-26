@@ -5,22 +5,14 @@ import type { DomPatch } from "../platforms/web/DomPatch.js";
 /**
  * Shape of the wasm-bindgen generated module.
  *
- * We declare this locally instead of importing the generated `.d.ts` so the
- * bridge does not statically depend on the WASM package's file layout.
+ * We only declare the pieces the bridge actually uses. The generated module
+ * may also expose a `default` (namespace object) and a `version` helper, but
+ * neither is required here.
  */
 interface WasmModule {
-  default: (
-    input?:
-      | { module_or_path?: unknown }
-      | unknown,
-  ) => Promise<unknown>;
-
   WasmRenderer: new () => WasmRendererHandle;
 }
 
-/**
- * Handle to the WASM-side renderer instance.
- */
 interface WasmRendererHandle {
   execute_batch(operations: unknown[]): DomPatch[];
   node_count(): number;
@@ -30,40 +22,26 @@ interface WasmRendererHandle {
 /**
  * Loads the WASM module.
  *
- * The import specifier is preserved as an opaque string so bundlers do not
- * statically resolve it. Resolution is done at runtime relative to this
- * file's location.
+ * IMPORTANT: The specifier is a literal string inside `import(...)` so
+ * bundlers (Vite, Rollup, webpack, tsup) can statically see it and rewrite
+ * it to a real URL. Do not route it through a variable or `new Function` —
+ * that hides it from the bundler and causes the browser to receive a bare
+ * specifier it cannot resolve at runtime.
  *
- * In a bundler context, the bundler resolves the specifier during its own
- * resolution pass (the `@vite-ignore` comment prevents it from being
- * inlined). In a Node context (Vitest), `new Function("import")` bypasses
- * Vite's static analysis so the specifier reaches Node's ESM loader as-is.
+ * `tsup` marks "levelojs/wasm" as external (see tsup.config.ts) so this
+ * package's own build does not try to inline it. Consumers resolve it via
+ * the "exports" map in package.json.
  */
-const WASM_MODULE_ID =
-  "../../../../../../native/levelo-bindings/wasm/pkg/levelo_wasm.js";
-
-/**
- * Opaque dynamic import.
- *
- * `new Function` prevents esbuild, Rollup, Vite, and Webpack from
- * statically analyzing the import target.
- */
-function runtimeImport<T>(specifier: string): Promise<T> {
-  const dynamicImport = new Function(
-    "specifier",
-    "return import(specifier)",
-  ) as (specifier: string) => Promise<T>;
-
-  return dynamicImport(specifier);
+async function loadWasmModule(): Promise<WasmModule> {
+  const mod = await import("levelojs/wasm");
+  return mod as unknown as WasmModule;
 }
-
-type WasmInitInput = unknown;
 
 export class LeveloWasmBridge implements NativeRendererBridge {
   private renderer: WasmRendererHandle | null = null;
   private initialized = false;
 
-  async initialize(input?: WasmInitInput): Promise<void> {
+  async initialize(): Promise<void> {
     if (this.initialized) {
       return;
     }
@@ -71,7 +49,7 @@ export class LeveloWasmBridge implements NativeRendererBridge {
     let module: WasmModule;
 
     try {
-      module = await runtimeImport<WasmModule>(WASM_MODULE_ID);
+      module = await loadWasmModule();
     } catch (error) {
       throw new Error(
         "[Levelo] The native renderer requires the `levelo-wasm` module. " +
@@ -80,16 +58,10 @@ export class LeveloWasmBridge implements NativeRendererBridge {
       );
     }
 
-    if (typeof module.default !== "function") {
+    if (typeof module.WasmRenderer !== "function") {
       throw new Error(
-        "[Levelo] The `levelo-wasm` module did not expose an init function.",
+        "[Levelo] The `levelo-wasm` module did not expose a WasmRenderer class.",
       );
-    }
-
-    if (input === undefined) {
-      await module.default();
-    } else {
-      await module.default({ module_or_path: input });
     }
 
     this.renderer = new module.WasmRenderer();

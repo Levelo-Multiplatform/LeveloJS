@@ -4,6 +4,8 @@ export function App() {
   const [value, setValue] = state(0);
   const [showDynamic, setShowDynamic] = state(false);
 
+  console.log("[App] render — value:", value(), "showDynamic:", showDynamic());
+
   return (
     <main id="top">
       <header>
@@ -31,22 +33,34 @@ export function App() {
         <h2>Reactive Renderer</h2>
 
         <p>
-          Count:<strong>{value()}</strong>
+          Count: <strong>{value()}</strong>
         </p>
 
         <button
           type="submit"
           onClick={() => {
-            setValue(value() + 1);
+            const before = value();
+            console.log("[Increment] before:", before);
+            setValue(before + 1);
+            const after = value();
+            console.log(
+              "[Increment] after:",
+              after,
+              "| read-after-write consistent?",
+              after === before + 1,
+            );
           }}
         >
           Increment
         </button>
 
         <button
-          type="submit"
+          type="submit-1"
           onClick={() => {
-            setShowDynamic(!showDynamic());
+            const before = showDynamic();
+            console.log("[Toggle] before:", before);
+            setShowDynamic(!before);
+            console.log("[Toggle] after:", showDynamic());
           }}
         >
           {showDynamic()
@@ -177,7 +191,7 @@ export function App() {
         <button
           type="button"
           onClick={() => {
-            console.log("LeveloJS button clicked");
+            console.log("[Interactive] Click Me clicked");
           }}
         >
           Click Me
@@ -186,6 +200,7 @@ export function App() {
         <button
           type="button"
           onClick={() => {
+            console.log("[Interactive] Show Alert clicked");
             alert("LeveloJS event handling works!");
           }}
         >
@@ -209,7 +224,7 @@ export function App() {
         <form
           onSubmit={(event: Event) => {
             event.preventDefault();
-            console.log("Form submitted");
+            console.log("[Form] submitted");
           }}
         >
           <fieldset>
@@ -224,7 +239,8 @@ export function App() {
               type="text"
               placeholder="Enter your name"
               onInput={(event: Event) => {
-                console.log("Name input:", event.currentTarget);
+                const target = event.currentTarget as HTMLInputElement;
+                console.log("[Form] name input:", target.value);
               }}
             />
 
@@ -275,7 +291,8 @@ export function App() {
             <select
               id="country"
               onChange={(event: Event) => {
-                console.log("Country changed:", event.currentTarget);
+                const target = event.currentTarget as HTMLSelectElement;
+                console.log("[Form] country changed:", target.value);
               }}
             >
               <option value="">

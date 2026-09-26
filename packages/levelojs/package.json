@@ -24,6 +24,11 @@
       "require": "./dist/jsx-runtime.cjs",
       "default": "./dist/jsx-runtime.js"
     },
+    "./wasm": {
+      "types": "./dist/wasm/levelo_wasm.d.ts",
+      "import": "./dist/wasm/levelo_wasm.js",
+      "default": "./dist/wasm/levelo_wasm.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

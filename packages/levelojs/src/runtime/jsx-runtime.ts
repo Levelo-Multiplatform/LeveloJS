@@ -309,12 +309,28 @@ export function h(
     }
 
     if (isEventProp(rawKey)) {
+      console.log(
+        "[Levelo] JSX event:",
+        rawKey,
+        "value:",
+        value,
+        "isReactive:",
+        isReactive,
+        "isFunction:",
+        typeof value === "function",
+      );
+    
       const event = eventName(rawKey);
+    
       if (isReactive) {
-        node.reactiveEvents.set(event, () => descriptor!.get!.call(safeProps));
+        node.reactiveEvents.set(
+          event,
+          () => descriptor!.get!.call(safeProps),
+        );
       } else if (typeof value === "function") {
         node.events.set(event, value as EventListener);
       }
+    
       continue;
     }
 
