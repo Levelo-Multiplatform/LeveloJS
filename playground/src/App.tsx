@@ -55,7 +55,7 @@ export function App() {
         </button>
 
         <button
-          type="submit-1"
+          type="button"
           onClick={() => {
             const before = showDynamic();
             console.log("[Toggle] before:", before);
