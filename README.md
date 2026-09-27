@@ -291,9 +291,35 @@ playground/              — the demo and manual inspection app
 git clone https://github.com/Levelo-Multiplatform/LeveloJS.git
 cd LeveloJS
 npm install                # installs all workspace packages
+npm run build              # builds the Rust WASM bindings and JS packages
 ```
 
-### Building
+After this, `cd playground && npm run dev` starts the dev server at
+http://localhost:6262.
+
+
+### Option A Build: Building every phase automatically
+
+Once the prerequisites are installed, build everything at once from the repo root:
+
+```bash
+npm run build
+```
+
+This builds the Rust WASM bindings and the JavaScript packages. It takes
+a couple of minutes the first time and a few seconds on rebuilds.
+
+If you already have the WASM bindings built and only need to rebuild
+the JavaScript packages:
+
+```bash
+npm run build:js
+```
+
+The two build phases are separate because the Rust half requires a
+toolchain that JavaScript-only contributors may not need.
+
+### Option B Build: Building each phase manually
 
 ```bash
 # Build the Rust core and its WASM bindings
@@ -308,6 +334,7 @@ npm run build
 cd ../vite-plugin-levelojs
 npm run build
 ```
+Choose the option that resonates with you.
 
 ### Running the playground
 
