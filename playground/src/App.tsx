@@ -69,16 +69,11 @@ export function App() {
         </button>
 
         <div>
-          <span>Before dynamic content</span>
-          <br />
-
           {showDynamic() ? (
             <p>
               Dynamic content is visible. Count: {value()}
             </p>
           ) : null}
-
-          <span>After dynamic content</span>
         </div>
       </section>
 
