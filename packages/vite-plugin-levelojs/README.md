@@ -23,12 +23,6 @@ no reconciliation, no React runtime.
 npm install levelojs vite-plugin-levelojs
 ```
 
-or
-
-```bash
-pnpm add levelojs vite-plugin-levelojs
-```
-
 ## Usage
 
 ```ts
