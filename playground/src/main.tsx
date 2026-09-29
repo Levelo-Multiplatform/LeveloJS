@@ -1,9 +1,10 @@
-import { render, state } from "levelojs";
+import { render } from "levelojs";
+import {state} from "../../packages/levelojs/src/index"
 import "./style.css";
 
 function App() {
   // Define state event
-  const [ value, setValue ] = state(0);
+  const [ value, setValue ] = state(6);
 
   return (
     <main id="top">
@@ -27,6 +28,8 @@ function App() {
 
       <hr />
 
+      <div>{value}</div>
+
       {/* State event application */}
       <section id="text"> 
         <h2>State Event</h2>
@@ -34,7 +37,7 @@ function App() {
         <button type="submit"
         onClick = {() => {
           console.log("Hello from Levelo JS"); 
-          setValue(value() +1);
+          setValue(prev => prev +1);
           console.log(value());
         }}>
           Click Me

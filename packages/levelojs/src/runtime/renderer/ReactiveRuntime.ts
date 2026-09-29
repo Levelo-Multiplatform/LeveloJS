@@ -24,7 +24,7 @@ export class ReactiveRuntime {
     const nodeDisposers: (() => void)[] = [];
     this.disposers.set(node, nodeDisposers);
 
-    if (node.type === "#text" && node.reactiveText) {
+    if (node.reactiveText) {
       const getter = node.reactiveText;
       nodeDisposers.push(effect(() => {
         this.adapter.execute(new OperationBatch([{

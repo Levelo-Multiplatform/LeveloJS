@@ -1,28 +1,15 @@
 mod controls;
+mod registry;
 
-use controls::create_button;
-use windows::core::{w, Result};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Gdi::{GetStockObject, HBRUSH, HDC, WHITE_BRUSH, SetBkMode, TRANSPARENT};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW,
-    DefWindowProcW,
-    DispatchMessageW,
-    GetMessageW,
-    PostQuitMessage,
-    RegisterClassW,
-    ShowWindow,
-    TranslateMessage,
-    CS_HREDRAW,
-    CS_VREDRAW,
-    MSG,
-    SW_SHOW,
-    WM_COMMAND,
-    WM_DESTROY,
-    WNDCLASSW,
-    WS_OVERLAPPEDWINDOW
+    CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, MSG,
+    PostQuitMessage, RegisterClassW, SW_SHOW, ShowWindow, TranslateMessage, WM_COMMAND, WM_DESTROY,
+    WNDCLASSW, WS_OVERLAPPEDWINDOW, WM_CTLCOLORSTATIC,
 };
-use windows::Win32::Graphics::Gdi::{GetStockObject, HBRUSH, WHITE_BRUSH};
+use windows::core::{Result, w};
 
 // Main Window Procedure callback
 unsafe extern "system" fn window_proc(
@@ -34,8 +21,18 @@ unsafe extern "system" fn window_proc(
     match msg {
         WM_COMMAND => {
             let control_id = (wparam.0 & 0xffff) as usize;
-            println!("LeveloJS Engine: Event received from Control ID -> {}", control_id);
+            println!(
+                "LeveloJS Engine: Event received from Control ID -> {}",
+                control_id
+            );
             LRESULT(0)
+        }
+        WM_CTLCOLORSTATIC => {
+            let hdc = HDC(wparam.0 as _);
+            unsafe { 
+                SetBkMode(hdc, TRANSPARENT);
+                LRESULT(GetStockObject(WHITE_BRUSH).0 as _)
+            }
         }
         WM_DESTROY => {
             unsafe { PostQuitMessage(0) };
@@ -73,13 +70,20 @@ fn main() -> Result<()> {
             None,
             None,
             Some(instance.into()),
-            None
+            None,
         )?;
 
         let _ = ShowWindow(main_hwnd, SW_SHOW);
 
-        let _btn1 = create_button("Button id 1", 50, 50, 160, 40, main_hwnd, 1)?;
-        let _btn2 = create_button("Button id 2", 50, 110, 160, 40, main_hwnd, 2)?;
+        let _btn = controls::create_button(main_hwnd, "Click Me", 50, 50, 120, 35, 1);
+        let _lbl =
+            controls::create_static(main_hwnd, "Levelo Engine - Pure Win32", 50, 100, 220, 25, 2);
+        let _inp = controls::create_input(main_hwnd, "Type something here...", 50, 140, 220, 30, 3);
+
+        controls::apply_modern_font(_btn);
+        controls::apply_modern_font(_lbl);
+        controls::apply_modern_font(_inp);
+        controls::enable_input_shortcuts(_inp);
 
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
