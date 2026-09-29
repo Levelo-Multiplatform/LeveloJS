@@ -9,13 +9,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-<<<<<<< HEAD
-    "ignoreDeprecations": "6.0"
-=======
     "baseUrl": ".",
     "ignoreDeprecations": "6.0",
     "types": ["node"]
->>>>>>> 327336fac383612b56f45847b899d87f9cdd99ee
   },
   "include": ["src/**/*", "tsup.config.ts"]
 }

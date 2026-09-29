@@ -1,13 +1,4 @@
 node_modules/
-<<<<<<< HEAD
-package-lock.json
-
-# Rust build artifacts
-/target/
-**/target/
-**/*.rs.bk
-Cargo.lock
-=======
 # Rust build artifacts
 target/
 **/target/
@@ -17,4 +8,3 @@ target/
 pkg/
 pkg-node/
 
->>>>>>> 327336fac383612b56f45847b899d87f9cdd99ee
