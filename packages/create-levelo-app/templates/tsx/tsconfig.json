@@ -3,6 +3,11 @@
     "jsx": "react",
     "jsxFactory": "h",
     "jsxFragmentFactory": "Fragment",
-    "noEmit": true
-  }
+    "noEmit": true,
+    "module": "esnext",
+    "target": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"]
+  },
+  "include": ["src/**/*", "levelo.d.ts", "jsx.d.ts"]
 }

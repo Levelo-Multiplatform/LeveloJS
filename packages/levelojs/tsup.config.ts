@@ -18,6 +18,7 @@ export default defineConfig([
       "vite",
       "@babel/types",
       "@babel/plugin-transform-typescript",
+      "levelojs/wasm",
     ],
   },
 ]);

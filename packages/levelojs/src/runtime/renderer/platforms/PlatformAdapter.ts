@@ -5,4 +5,5 @@ export interface PlatformAdapter<THost = unknown> {
   execute(batch: OperationBatch): void;
   mount(host: THost, rootId: number): void;
   unmount(host: THost, rootId: number): void;
+  dispose?(): void;
 }

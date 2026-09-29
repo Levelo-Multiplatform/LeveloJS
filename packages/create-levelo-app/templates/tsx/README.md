@@ -16,8 +16,8 @@ npx create-levelo-app my-app
 
 ```sh
 cd my-app
-npm install # or pnpm install
-npm run dev # or pnpm install
+npm install
+npm run dev
 ```
 That's it. You're leveling up.
 

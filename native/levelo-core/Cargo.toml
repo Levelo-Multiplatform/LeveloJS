@@ -1,0 +1,14 @@
+[package]
+name = "levelo-core"
+version = "0.1.0"
+edition = "2024"
+description = "The platform-neutral native core of LeveloJS."
+license = "MIT"
+repository = "https://github.com/Levelo-Multiplatform/LeveloJS"
+homepage = "https://github.com/Levelo-Multiplatform/LeveloJS"
+readme = "README.md"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]

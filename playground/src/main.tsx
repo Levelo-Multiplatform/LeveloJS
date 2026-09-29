@@ -1,4 +1,5 @@
 import { render } from "levelojs";
+<<<<<<< HEAD
 import {state} from "../../packages/levelojs/src/index"
 import "./style.css";
 
@@ -427,10 +428,24 @@ function App() {
   );
 }
 
+=======
+import { App } from "./App";
+import { RouterDemo } from "./router-demo";
+import "./style.css";
+
+>>>>>>> 327336fac383612b56f45847b899d87f9cdd99ee
 const root = document.getElementById("app");
 
 if (!root) {
   throw new Error("Missing #app element.");
 }
 
-render(<App />, root);
+const isRouterDemo = window.location.pathname.startsWith("/router");
+
+ render(isRouterDemo ? RouterDemo : App, root);
+
+console.log(
+  isRouterDemo
+    ? "[Levelo Test] Router demo mounted."
+    : "[Levelo Test] Element zoo mounted.",
+);

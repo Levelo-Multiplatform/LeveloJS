@@ -1,116 +1,394 @@
-<div align="center">
-  <img src="https://raw.githubusercontent.com/MotionMind2007/Levelo-Js/main/assets/logo-colored.svg" alt="Levelo JS Logo" width="120">
-  <h1>Levelo JS</h1>
+# Levelo
 
-  <a href="https://lab.motionmind.me"><img alt="Made by Motion Mind" src="https://img.shields.io/badge/MADE%20BY%20Motion%20Mind-000000.svg?style=for-the-badge&labelColor=000"></a>
-  <a href="https://www.npmjs.com/package/levelojs"><img alt="NPM version" src="https://img.shields.io/npm/v/levelojs.svg?style=for-the-badge&labelColor=000000"></a>
-  <a href="https://github.com/MotionMind2007/Levelo-Js/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-000000.svg?style=for-the-badge&labelColor=000000"></a>
+A cross-platform UI runtime. Fine-grained reactivity lives in JavaScript.
+The renderer and its render tree live in Rust, compiled to WebAssembly.
+Platform adapters translate the core's output into native operations.
 
-</div>
+Levelo is not a Virtual DOM framework. It does not diff trees. It does not
+re-run components on state change. It compiles reactive JSX into bindings
+that update the specific native node a signal belongs to.
 
-## 💥 What's New (v2.1.0 - Hot Topics)
+## Why this architecture
 
-<details>
-<summary><b>Click to expand what's new in v2.1.0! 🚀</b></summary>
-<br />
+Most UI frameworks put everything in one language. React, Vue, and Svelte
+all live entirely in JavaScript and pay the cost of describing UI in JS.
+Flutter puts everything in Dart and pays the cost of not being native
+anywhere. React Native bridges to native views but keeps rendering logic
+in JS.
 
-The performance and stability update is here! We've dropped major architectural enhancements to make Levelo JS scale beautifully in production:
+Levelo's bet is different: split rendering and reactivity across the
+language boundary that each is best suited for.
 
-* **⚡ Optimized State Mutations via `batch()`**: Group multiple synchronized state updates seamlessly. Instead of triggering expensive incremental DOM rerenders for every individual mutation, the framework now queues changes and flushes them in a single cycle—drastically improving efficiency during high-frequency updates and loops.
-* **📝 Form Controls Fix (Dynamic Value Tracking)**: Fixed a structural bug in `dom.ts` where `<input>`, `<textarea>`, and `<select>` elements lost reactive synchronizations with state values. Forms are now fully safe and reactive.
-* **📦 Ecosystem Modularity**: `vite-plugin-levelojs` has been completely modularized into a standalone independent workspace package for better project scaffolding and clean build cycles.
+**Rendering goes in Rust** because it is:
+- inherently stateful (node identity, parent/child links, lifecycle)
+- performance-sensitive on structural changes
+- something every platform needs and none should re-implement
 
-</details>
+**Reactivity stays in JavaScript** because it is:
+- cheap to express as closures and function calls
+- naturally synchronous and fine-grained
+- something whose cost is dominated by *crossing* boundaries, not by
+  the work itself
 
----
+The result is one renderer, one set of invariants, one patch protocol —
+and per-platform adapters that are thin by design.
 
-## Getting Started
+## Status
 
-Levelo JS is a lightweight, ultra-fast reactive JavaScript framework built for speed and simplicity. No Virtual DOM. Direct Real DOM. Powered by [Motion Mind](https://lab.motionmind.me).
+Pre-1.0. The API is not stable.
 
-### Using CLI (Recommended)
+| Piece | State |
+|---|---|
+| Rust core (`levelo-core`) | Implemented and tested |
+| Web renderer + adapter | Working |
+| JSX transform (`vite-plugin-levelojs`) | Working |
+| Fine-grained reactivity | Verified by test |
+| Android adapter | Planned |
+| Windows adapter | Planned |
+| Stable WASM public API | Not yet defined |
 
-Scaffold a complete Levelo JS project instantly:
+## Install and use
 
-```sh
-npx create-levelo-app my-app
-cd my-app
-npm install
-npm run dev
+```bash
+npm install levelojs
+npm install -D vite vite-plugin-levelojs
 ```
 
-### Manual Installation
+Configure Vite:
 
-Add Levelo JS to an existing project:
+```ts
+import { defineConfig } from "vite";
+import { leveloPlugin } from "vite-plugin-levelojs";
 
-```sh
-npm install levelojs 
+export default defineConfig({
+  plugins: [leveloPlugin()],
+});
 ```
 
-## Quick Start
+A complete component:
 
-```jsx
-import { render } from 'levelojs';
-import Mind from './Mind.jsx';
+```tsx
+import { render, state } from "levelojs";
 
-render(Mind, document.getElementById('app'));
-```
-
-```jsx
-import { state } from 'levelojs';
-
-function Counter() {
+function App() {
   const [count, setCount] = state(0);
+  const [name, setName] = state("world");
 
   return (
-    <div>
-      <h2>{count()}</h2>
-      <button onclick={() => setCount(count() + 1)}>
-        Level Up ➔
-      </button>
-    </div>
+    <main>
+      <h1>Hello, {name()}</h1>
+      <p>Count: {count()}</p>
+
+      <button onClick={() => setCount(count() + 1)}>Increment</button>
+
+      <input
+        type="text"
+        value={name()}
+        onInput={(e: Event) =>
+          setName((e.currentTarget as HTMLInputElement).value)
+        }
+      />
+    </main>
   );
 }
 
-export default Counter;
+render(App, document.getElementById("app"));
 ```
 
-## Features
+## Rendering model
 
-- **No VDOM / No Reconciliation** - Reactive updates never rebuild, compare, or reconcile UI trees; existing native nodes are updated directly.
-- **Fine-grained Reactivity** - Individual reactive bindings update only the native nodes and properties that depend on them.
-- **Hierarchical Ownership** - Native tracking scopes ensure nested reactions dispose properly with zero memory leaks.
-- **TypeScript Powered** - Complete internal codebase rewrite into strict, type-safe structures.
-- **JSX Support** - Standard developer-friendly component structuring with seamless reactive attribute bindings.
-- **Vite-integrated** - Pre-configured for instantaneous Hot Module Replacement (HMR) and optimized distribution builds.
+Levelo does not use a Virtual DOM, tree reconciliation, or tree diffing.
 
-## Core API
+When a component is mounted, the JSX transform has already turned it into
+a tree of `InternalRenderNode`s. Reactive expressions inside that tree —
+`{count()}`, `value={name()}`, `style={...}` — were compiled into lazy
+bindings. During mount, each binding is subscribed to the signals it
+reads.
 
-| API | Type | Description |
-|---  |---   |---          |
-| `state` | Primitive | Creates a reactive state atom with a getter/setter tuple. |
-| `effect` | Side Effect | Tracks active reactive dependencies and re-executes automatically. |
-| `computed` | Memoization | Derives stateful values efficiently using caching mechanics.|
-| `cleanup` | Lifecycle | Registers disposal routines inside active tracking ownership contexts. |
-| `mount` | Lifecycle | Schedules code execution precisely after layout nodes paint to the Real DOM. |
-| `batch` | Performance | Groups multiple state mutations together into a single microtask to optimize DOM updates. |
-| `head` | SEO Management | Dynamic, component-driven configuration for document metadata layers. |
-| `render` | Bootstrapper | Injects and mounts the root structural component tree to a DOM container. |
-| `h` | Factory | Real DOM internal hyperscript generator (compiler-targeted). |
+When a signal changes, the binding fires. The runtime produces a targeted
+operation describing the change, sends it across the WASM boundary to
+the Rust core, and receives back a `DomPatch` the platform adapter
+applies directly.
 
-## Packages
+```text
+signal change
+      ↓
+reactive binding (JS)
+      ↓
+targeted operation
+      ↓
+WASM boundary
+      ↓
+Rust core: apply_batch → DomPatch[]
+      ↓
+WASM boundary
+      ↓
+platform adapter applies patches
+      ↓
+native UI
+```
 
-| Package | Description | Version |
-|---|---|---|
-| `levelojs` | Core framework library | ![npm](https://img.shields.io/npm/v/levelojs.svg?labelColor=000&color=000) |
-| `create-levelo-app` | Official project scaffolding CLI | ![npm](https://img.shields.io/npm/v/create-levelo-app.svg?labelColor=000&color=000) |
-| `vite-plugin-levelojs` | levelojs vite plugin | ![npm](https://img.shields.io/npm/v/vite-plugin-levelojs?labelColor=000&color=000) |
+The `RenderTree` is not compared against a previous render. It is a
+structural description used for initial mount and ownership tracking. It
+is never the input to a diff.
+
+This behavior is verified by
+`packages/levelojs/src/runtime/renderer/reactive-rerender.test.ts`, which
+asserts that a signal change does not re-invoke the component function.
+
+## Architecture
+
+### The Rust core
+
+The core owns:
+
+- **Node identity.** Every element and text node has a stable `NodeId`.
+- **Structural relationships.** Parent/child links, sibling order,
+  lifecycle.
+- **Renderer state.** Properties, styles, text content per node.
+- **Patch emission.** Translating operations into platform-neutral
+  `DomPatch` sequences.
+
+The core enforces structural invariants:
+- No cycles. A node cannot become its own ancestor.
+- One parent per node. Re-attaching moves rather than duplicates.
+- Idempotent attachment. Attaching a child to its current parent is a
+  no-op.
+- Correct index handling. `ReplaceChild` and `InsertBefore` adjust
+  sibling positions consistently.
+
+The core does not touch the DOM, Android Views, Win32, or UIKit. It has
+no dependencies on any platform toolkit.
+
+### The WASM boundary
+
+The boundary is deliberately narrow. Two directions:
+
+**JavaScript → Rust:** an ordered array of `NativeOperation` values.
+
+```ts
+type NativeOperation =
+  | { type: "CreateElement"; node: number; elementType: string }
+  | { type: "CreateText"; node: number; text: string }
+  | { type: "AppendChild"; parent: number; child: number }
+  | { type: "InsertBefore"; parent: number; child: number; reference: number }
+  | { type: "ReplaceChild"; parent: number; newChild: number; oldChild: number }
+  | { type: "RemoveChild"; parent: number; child: number }
+  | { type: "DeleteNode"; node: number }
+  | { type: "SetProperty"; node: number; name: string; value: NativeValue }
+  | { type: "RemoveProperty"; node: number; name: string }
+  | { type: "SetStyle"; node: number; name: string; value: string }
+  | { type: "RemoveStyle"; node: number; name: string }
+  | { type: "SetText"; node: number; text: string };
+```
+
+**Rust → JavaScript:** an ordered array of `DomPatch` values.
+
+```ts
+type DomPatch =
+  | { type: "CreateElement"; node: number; tag: string }
+  | { type: "CreateText"; node: number; text: string }
+  | { type: "SetProperty"; node: number; name: string; value: unknown }
+  | { type: "RemoveProperty"; node: number; name: string }
+  | { type: "SetStyle"; node: number; name: string; value: string }
+  | { type: "RemoveStyle"; node: number; name: string }
+  | { type: "SetText"; node: number; text: string }
+  | { type: "AppendChild"; parent: number; child: number }
+  | { type: "InsertBefore"; parent: number; child: number; reference: number }
+  | { type: "RemoveChild"; parent: number; child: number }
+  | { type: "ReplaceChild"; parent: number; newChild: number; oldChild: number }
+  | { type: "DeleteNode"; node: number };
+```
+
+Patches are emitted in dependency order. A node is created before it is
+referenced; it is unparented before it is removed. Adapters apply them
+sequentially, without lookahead.
+
+Event listener operations are filtered at the boundary. JavaScript
+functions cannot cross into Rust, so `AddEventListener` and
+`RemoveEventListener` stay entirely in the JS layer.
+
+### The JSX transform
+
+`vite-plugin-levelojs` is a Babel plugin that runs before Vite's default
+transform. It converts `.tsx` sources into calls to `h()`:
+
+```tsx
+<span>{count()}</span>
+```
+
+becomes:
+
+```js
+h("span", {}, () => count());
+```
+
+Two rules matter:
+
+- **Reactive props and styles become object getters.** `value={name()}`
+  becomes `{ get value() { return name(); } }`. The getter is retained at
+  runtime so the binding can subscribe to the signal.
+- **Reactive children become arrow wrappers.** `{count()}` becomes
+  `() => count()`. The wrapper is called once for the initial value and
+  retained as a reactive binding.
+
+Event props are passed through as direct function values, since they
+need to be attached to native nodes.
+
+### The DomPatch protocol
+
+`DomPatch` is the contract between the Rust core and every platform
+adapter. It is intentionally a flat, ordered list rather than a tree:
+each patch is one concrete mutation, and applying them in order produces
+the correct final state without any diffing.
+
+This makes adapters trivial to write. A Web adapter is a switch over
+patch types calling `document.createElement`, `parent.appendChild`, and
+so on. An Android adapter would be a switch over the same patch types
+calling into the Android view hierarchy. The protocol does not know or
+care which platform it is targeting.
+
+### Platform adapters
+
+The Web adapter is the first implementation and the current reference.
+Android and Windows adapters are planned against the same patch protocol.
+
+The `PlatformAdapter` interface is the extension point:
+
+```ts
+interface PlatformAdapter<THost = unknown> {
+  execute(batch: OperationBatch): void;
+  mount(host: THost, rootId: number): void;
+  unmount(host: THost, rootId: number): void;
+  dispose?(): void;
+}
+```
+
+## Repository layout
+
+```text
+packages/
+  levelojs/              — the npm package (runtime + renderer glue)
+  vite-plugin-levelojs/  — the JSX compiler plugin
+  create-levelo-app/     — project scaffolding
+native/
+  levelo-core/           — the Rust renderer core
+  levelo-bindings/       — WASM and other language bindings
+playground/              — the demo and manual inspection app
+```
+
+## Working on Levelo
+
+### Prerequisites
+
+- Node.js 20+
+- Rust toolchain (stable)
+- `wasm-pack` for building the WASM bindings
+
+### First-time setup
+
+```bash
+git clone https://github.com/Levelo-Multiplatform/LeveloJS.git
+cd LeveloJS
+npm install                # installs all workspace packages
+npm run build              # builds the Rust WASM bindings and JS packages
+```
+
+After this, `cd playground && npm run dev` starts the dev server at
+http://localhost:6262.
+
+
+### Option A Build: Building every phase automatically
+
+Once the prerequisites are installed, build everything at once from the repo root:
+
+```bash
+npm run build
+```
+
+This builds the Rust WASM bindings and the JavaScript packages. It takes
+a couple of minutes the first time and a few seconds on rebuilds.
+
+If you already have the WASM bindings built and only need to rebuild
+the JavaScript packages:
+
+```bash
+npm run build:js
+```
+
+The two build phases are separate because the Rust half requires a
+toolchain that JavaScript-only contributors may not need.
+
+### Option B Build: Building each phase manually
+
+```bash
+# Build the Rust core and its WASM bindings
+cd native/levelo-bindings/wasm
+wasm-pack build --target bundler
+wasm-pack build --target nodejs --out-dir pkg-node
+
+# Build the JS packages
+cd ../../../packages/levelojs
+npm run build
+
+cd ../vite-plugin-levelojs
+npm run build
+```
+Choose the option that resonates with you.
+
+### Running the playground
+
+```bash
+cd playground
+npm run dev
+```
+
+Open http://localhost:6262. The playground exercises every supported HTML
+element and includes interactive sections for verifying reactivity.
+
+### Running tests
+
+```bash
+# Rust core
+cd native/levelo-core
+cargo test
+
+# JavaScript packages
+cd packages/levelojs
+npm test
+
+cd ../vite-plugin-levelojs
+npm test
+```
+
+### Where to start reading
+
+- **Core invariants:** `native/levelo-core/src/tree.rs` — the `NodeStore`
+  and its structural guarantees.
+- **Operations and patches:** `native/levelo-core/src/operations.rs` and
+  `native/levelo-core/src/patch.rs`.
+- **The WASM bridge:** `native/levelo-bindings/wasm/src/lib.rs`.
+- **The JSX transform:** `packages/vite-plugin-levelojs/src/index.ts`.
+- **The JS runtime:** `packages/levelojs/src/runtime/`.
+
+## Known limitations
+
+- **Event listeners stay in JavaScript.** They are filtered at the
+  boundary and never reach the core.
+- **The JSX transform does not handle spread props (`{...rest}`) or
+  namespaced attributes (`xlink:href`).** Both need explicit handling
+  before those patterns can be used.
+- **The per-update cost of crossing the WASM boundary is unmeasured.**
+  Every reactive update crosses. Whether that cost dominates for
+  signal-heavy components is an open question that will be answered by
+  profiling, not speculation.
+- **The test environment does not load the WASM module.** Tests that
+  exercise `render()` cannot currently reach the Rust core. Tree-level
+  tests (as in `reactive-rerender.test.ts`) work; full-pipeline tests
+  need a mock bridge or a WASM module resolvable at test time.
+- **No stable public API for the WASM binding.** The bridge exists and
+  works, but its shape may change before 1.0.
+
 ## License
 
-This project is licensed under the [MIT License](LICENSE) © [Motion Mind](https://lab.motionmind.me).
-
----
-
-<div align="center">
-Built with ⚡ by <a href="https://lab.motionmind.me">Motion Mind</a>
-</div>
+MIT.

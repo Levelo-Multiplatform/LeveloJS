@@ -5,8 +5,9 @@
   },
   "description": "Super fast beginner friendly lightweight javascript framework, powered by Motion Mind",
   "scripts": {
-    "build:levelojs": "pnpm --filter levelojs build",
-    "build:vpl": "pnpm --filter vite-plugin-levelojs build",
+    "build:wasm": "cd native/levelo-bindings/wasm && wasm-pack build --target bundler && wasm-pack build --target nodejs --out-dir pkg-node",
+    "build:js": "npm run build --workspace=vite-plugin-levelojs && npm run build --workspace=levelojs",
+    "build": "npm run build:wasm && npm run build:js",
     "lockfile:npm": "npm install --package-lock-only --ignore-scripts"
   },
   "repository": {
@@ -25,9 +26,9 @@
     "packages/*"
   ],
   "dependencies": {
-    "levelojs": "link:packages/levelojs",
+    "levelojs": "^2.2.0",
     "tsup": "^8.5.1",
-    "vite-plugin-levelojs": "workspace:*"
+    "vite-plugin-levelojs": "^1.0.0"
   },
   "devDependencies": {
     "@babel/types": "^8.0.4",
@@ -35,5 +36,15 @@
     "@types/node": "^26.1.1",
     "typescript": "^6.0.3",
     "vite": "^8.1.4"
+<<<<<<< HEAD
+=======
+  },
+  "overrides": {
+    "esbuild@>=0.27.3 <0.28.1": "^0.28.1",
+    "nanoid@<3.3.18": "^3.3.18",
+    "postcss@<=8.5.22": "^8.5.23",
+    "browserslist@<=4.28.6": "^4.28.7",
+    "baseline-browser-mapping@>=2.0.0 <2.11.0": "^2.11.0"
+>>>>>>> 327336fac383612b56f45847b899d87f9cdd99ee
   }
 }

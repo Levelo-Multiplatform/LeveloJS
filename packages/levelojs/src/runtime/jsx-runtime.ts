@@ -74,7 +74,7 @@ function appendChild(
     // materialized now, while the getter is retained for fine-grained updates.
     const getter = child as () => unknown;
     const initialValue = getter();
-
+  
     // Primitive expressions map to one real text node. The text node can then
     // subscribe directly to the signal without any structural work.
     if (isTextValue(initialValue)) {
@@ -86,14 +86,19 @@ function appendChild(
       parent.appendChild(textNode);
       return;
     }
-
+  
+    const position = parent.children.length;
     const nodes = materializeDynamicValue(initialValue, namespace);
 
-    for (const node of nodes) parent.appendChild(node);
+    for (const node of nodes) {
+      parent.appendChild(node);
+    }
 
     parent.dynamicChildren.push({
       getter,
       initialValue,
+      position,
+      initialLength: nodes.length,
       current: nodes,
       lastValue: initialValue,
     });
@@ -304,12 +309,28 @@ export function h(
     }
 
     if (isEventProp(rawKey)) {
+      console.log(
+        "[Levelo] JSX event:",
+        rawKey,
+        "value:",
+        value,
+        "isReactive:",
+        isReactive,
+        "isFunction:",
+        typeof value === "function",
+      );
+    
       const event = eventName(rawKey);
+    
       if (isReactive) {
-        node.reactiveEvents.set(event, () => descriptor!.get!.call(safeProps));
+        node.reactiveEvents.set(
+          event,
+          () => descriptor!.get!.call(safeProps),
+        );
       } else if (typeof value === "function") {
         node.events.set(event, value as EventListener);
       }
+    
       continue;
     }
 

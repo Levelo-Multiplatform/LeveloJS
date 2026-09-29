@@ -35,7 +35,9 @@ export class DefaultRenderer implements Renderer {
 
   dispose(tree: RenderTree): void {
     if (!this.mounted) return;
+  
     this.reactiveRuntime.dispose(tree.root);
+    this.adapter.dispose?.();
     this.mounted = false;
   }
 }

@@ -21,17 +21,6 @@ export type {
 } from "./operations/OperationExecutorRegistry.js";
 export * from "./tree/operations/index.js";
 
-// Commit
-export { CommitCoordinator } from "./commit/CommitCoordinator.js";
-
-// Pipeline
-export type { RenderPipeline } from "./pipeline/RenderPipeline.js";
-export { DefaultRenderPipeline } from "./pipeline/DefaultRenderPipeline.js";
-export type { PipelineStage } from "./pipeline/PipelineStage.js";
-export type { RenderPipelineContext } from "./pipeline/RenderPipelineContext.js";
-export { ValidationStage } from "./pipeline/ValidationStage.js";
-export { CommitStage } from "./pipeline/CommitStage.js";
-
 // Scheduling
 export type { Scheduler } from "./scheduler/Scheduler.js";
 export { ImmediateScheduler } from "./scheduler/ImmediateScheduler.js";
@@ -41,26 +30,9 @@ export type { PlatformAdapter } from "./platforms/PlatformAdapter.js";
 
 // Web platform
 export { WebAdapter } from "./platforms/web/WebAdapter.js";
-export type { WebOperationExecutor } from "./platforms/web/WebOperationExecutor.js";
-export { WebOperationRegistry } from "./platforms/web/WebOperationRegistry.js";
+export type { DomPatch } from "./platforms/web/DomPatch.js";
 export { NativeNodeRegistry } from "./platforms/web/NativeNodeRegistry.js";
 export type { NativeNode } from "./platforms/web/NativeNodeRegistry.js";
-
-// Web executors
-export { CreateElementExecutor } from "./platforms/web/executors/CreateElementExecutor.js";
-export { CreateTextExecutor } from "./platforms/web/executors/CreateTextExecutor.js";
-export { AppendChildExecutor } from "./platforms/web/executors/AppendChildExecutor.js";
-export { RemoveChildExecutor } from "./platforms/web/executors/RemoveChildExecutor.js";
-export { ReplaceChildExecutor } from "./platforms/web/executors/ReplaceChildExecutor.js";
-export { InsertBeforeExecutor } from "./platforms/web/executors/InsertBeforeExecutor.js";
-export { DeleteNodeExecutor } from "./platforms/web/executors/DeleteNodeExecutor.js";
-export { SetPropertyExecutor } from "./platforms/web/executors/SetPropertyExecutor.js";
-export { RemovePropertyExecutor } from "./platforms/web/executors/RemovePropertyExecutor.js";
-export { SetStyleExecutor } from "./platforms/web/executors/SetStyleExecutor.js";
-export { RemoveStyleExecutor } from "./platforms/web/executors/RemoveStyleExecutor.js";
-export { SetTextExecutor } from "./platforms/web/executors/SetTextExecutor.js";
-export { AddEventListenerExecutor } from "./platforms/web/executors/AddEventListenerExecutor.js";
-export { RemoveEventListenerExecutor } from "./platforms/web/executors/RemoveEventListenerExecutor.js";
 
 // Container / dependency injection
 export { InjectionToken } from "./container/InjectionToken.js";
@@ -68,7 +40,11 @@ export { RendererContainer } from "./container/RendererContainer.js";
 export {
   RENDERER_TOKEN,
   PLATFORM_ADAPTER_TOKEN,
-  RENDER_PIPELINE_TOKEN,
   SCHEDULER_TOKEN,
-  COMMIT_COORDINATOR_TOKEN,
 } from "./container/RendererTokens.js";
+
+// The native renderer
+export * from "./native/index.js";
+
+// Native platform adapter
+export { NativeAdapter } from "./platforms/native/NativeAdapter.js";
